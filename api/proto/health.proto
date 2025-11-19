@@ -1,0 +1,17 @@
+syntax = "proto3";
+package com.xealgo.muddy.api;
+option go_package = "./;muddyapi";
+
+message StatusRequest {
+    // Nothing yet.
+}
+
+message StatusResponse {
+    bool is_active = 1;
+    int32 uptime = 2;
+    int32 active_users = 3;
+}
+
+service HealthService {
+    rpc GetStatus(StatusRequest) returns (StatusResponse);
+}
