@@ -34,7 +34,11 @@ func NewGrpcServer(cfg *config.Config) *GrpcServer {
 func (gs *GrpcServer) StartServer(ctx context.Context, wg *sync.WaitGroup) error {
 	defer wg.Done()
 
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", gs.cfg.GrpcPort))
+	addr := fmt.Sprintf(":%d", gs.cfg.GrpcPort)
+
+	slog.Info("Starting GRPC server", "address", addr)
+
+	lis, err := net.Listen("tcp", addr)
 	if err != nil {
 		return err
 	}

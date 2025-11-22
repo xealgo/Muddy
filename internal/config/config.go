@@ -66,6 +66,31 @@ func NewConfig(opts ...ConfigOption) (*Config, error) {
 	return cfg, nil
 }
 
+// Creates a Config specifically for the client with default settings
+func NewClientConfig(opts ...ConfigOption) (*Config, error) {
+	cfg := &Config{
+		HttpPort: 17000,
+		GrpcPort: 17001,
+		WTPort:   17002,
+	}
+
+	for _, opts := range opts {
+		opts(cfg)
+	}
+
+	err := cfg.LoadFromEnv()
+	if err != nil {
+		return nil, err
+	}
+
+	err = cfg.setPortsFromEnv()
+	if err != nil {
+		return nil, err
+	}
+
+	return cfg, nil
+}
+
 // WithEnvPath sets the custom .env path
 func WithEnvPath(path string) ConfigOption {
 	return func(cfg *Config) {
@@ -115,8 +140,8 @@ func (cfg *Config) LoadCerts() (*tls.Config, error) {
 	}, nil
 }
 
-// Sets configuration values from environment variables
-func (cfg *Config) SetFromEnv() error {
+// Sets port values from environment variables
+func (cfg *Config) setPortsFromEnv() error {
 	envPort := GetEnv(ConfigHttpPort, "")
 	if envPort != "" {
 		port, err := strconv.Atoi(envPort)
@@ -147,9 +172,19 @@ func (cfg *Config) SetFromEnv() error {
 		cfg.WTPort = port
 	}
 
+	return nil
+}
+
+// Sets configuration values from environment variables
+func (cfg *Config) SetFromEnv() error {
+	err := cfg.setPortsFromEnv()
+	if err != nil {
+		return err
+	}
+
 	cfg.CertFile = GetEnv(ConfigCertFile, cfg.CertFile)
 
-	_, err := os.Stat(cfg.CertFile)
+	_, err = os.Stat(cfg.CertFile)
 	if err != nil {
 		return ConfigError{Type: FileNotFound, Message: "Certificate file not found", EnvPath: cfg.envPath, CertFile: cfg.CertFile, Wrapped: err}
 	}

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -9,7 +10,6 @@ import (
 	"syscall"
 
 	"github.com/gookit/color"
-	_ "github.com/manifoldco/promptui"
 
 	"github.com/xealgo/muddy/internal/config"
 	"github.com/xealgo/muddy/internal/game"
@@ -55,7 +55,8 @@ func main() {
 		cfg,
 		server.WithCORSHandler(),
 		server.WithStaticPageHandlers(
-			server.HttpServerStaticFileConfig{Path: "/game-client", FilePath: "./test-webclient.html"},
+			server.HttpServerStaticFileConfig{Path: "/", FilePath: "./public/index.html"},
+			// server.HttpServerStaticFileConfig{Path: "/game-client", FilePath: "./public/client.html"},
 		),
 	)
 
@@ -63,6 +64,8 @@ func main() {
 		slog.Error("Failed to create HTTP server", "error", err)
 		os.Exit(1)
 	}
+
+	fmt.Printf("https://localhost:%d/\n", cfg.HttpPort)
 
 	wg.Add(1)
 	go func() {

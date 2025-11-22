@@ -15,6 +15,7 @@ import (
 type HttpRouteHandler func(server *HttpServer) error
 type HttpServerListener func() error
 
+// HttpServerStaticFileConfig represents configuration for serving a static file
 type HttpServerStaticFileConfig struct {
 	Path     string
 	FilePath string

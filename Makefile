@@ -1,10 +1,8 @@
-# Define the name of your main Go package (e.g., "main" if your main.go is in the root)
 SERVER_PACKAGE := ./cmd/muddy
-
+CLIENT_PACKAGE := ./cmd/client
 BUILD_PATH := ./builds
-
-# Define the name of the executable binary
 SERVER_BINARY := "$(BUILD_PATH)/muddy"
+CLIENT_BINARY := "$(BUILD_PATH)/client"
 
 # Default target: builds the application
 all: build-server
@@ -13,13 +11,21 @@ all: build-server
 setup-udp:
 	./scripts/setupudp.sh
 
-# Build target: compiles the Go application
+# Build target: compiles the server
 build-server:
 	@go build -o "$(SERVER_BINARY)" $(SERVER_PACKAGE)
 
-# Run target: executes the compiled binary
+# Build target: compiles the client
+build-client:
+	@go build -o "$(CLIENT_BINARY)" $(CLIENT_PACKAGE)
+
+# Run target: builds and runs the server
 run-server: build-server
 	@$(SERVER_BINARY)
+
+# Run target: builds and runs the client
+run-client: build-client
+	@$(CLIENT_BINARY)
 
 # Test target: runs all Go tests
 test:
