@@ -2,20 +2,20 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"io"
 	"log/slog"
-	"net/http"
 	"os"
-	"strings"
+	"os/signal"
+	"sync"
+	"syscall"
 
 	"github.com/gookit/color"
 	_ "github.com/manifoldco/promptui"
-	"github.com/quic-go/quic-go/http3"
-	"github.com/quic-go/webtransport-go"
 
 	"github.com/xealgo/muddy/internal/config"
+	"github.com/xealgo/muddy/internal/game"
 	"github.com/xealgo/muddy/internal/server"
+	"github.com/xealgo/muddy/internal/services"
+	"github.com/xealgo/muddy/internal/session"
 )
 
 func main() {
@@ -23,16 +23,34 @@ func main() {
 
 	cfg, err := config.NewConfig(
 		config.WithEnvPath(".env"),
-		config.WithDefaults(17000, "./certs/muddy.crt", "./certs/muddy-server.key"),
+		config.WithDefaults(17000, 17001, 17002, "./certs/muddy.crt", "./certs/muddy-server.key"),
 	)
-
 	if err != nil {
 		slog.Error("Failed to load configuration", "error", err)
 		os.Exit(1)
 	}
 
-	addr := fmt.Sprintf(":%d", cfg.Port)
+	// Session manager instance used for managing player sessions
+	sm := session.NewSessionManager(64)
 
+	// Game state instance
+	gs := game.NewGameState()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
+	wg := sync.WaitGroup{}
+
+	// Handle shutdown signal
+	go func() {
+		<-sigChan
+		cancel()
+	}()
+
+	// HTTP server setup
 	httpServer, err := server.NewHttpServer(
 		cfg,
 		server.WithCORSHandler(),
@@ -46,90 +64,39 @@ func main() {
 		os.Exit(1)
 	}
 
-	wt := &webtransport.Server{
-		CheckOrigin: func(r *http.Request) bool {
-			return strings.Contains(r.Host, "localhost:1700")
-		},
-		H3: http3.Server{
-			Addr:      addr,
-			TLSConfig: cfg.TLSConfig,
-		},
-	}
-
-	http.HandleFunc("/wt", func(w http.ResponseWriter, r *http.Request) {
-		fmt.Printf("Received request method: %s, URL: %s\n", r.Method, r.URL.Path)
-
-		// Check if this is a WebTransport upgrade request
-		if r.Method == "CONNECT" && r.Proto == "webtransport" {
-			session, err := wt.Upgrade(w, r)
-			if err != nil {
-				slog.Error("Failed to upgrade to WebTransport session", "error", err)
-				http.Error(w, "WebTransport upgrade failed", http.StatusBadRequest)
-				return
-			}
-
-			go handleWebTransportSession(session)
-			return
-		}
-
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprintf(w, "Muddy WebTransport Server Ready")
-	})
-
+	wg.Add(1)
 	go func() {
-		if err := httpServer.Setup(); err != nil {
+		if err := httpServer.Start(ctx, &wg); err != nil {
 			slog.Error("HTTP server failed", "error", err)
-			os.Exit(1)
 		}
 	}()
 
-	defer wt.Close()
+	// GRPC server setup
+	grpcServer := server.NewGrpcServer(cfg)
+	services.RegisterHealthService(cfg, grpcServer.Server, gs, sm)
+	services.RegisterLoginService(cfg, grpcServer.Server, sm)
 
-	slog.Info("Starting WebTransport server", "address", addr)
-	if err := wt.ListenAndServe(); err != nil {
-		slog.Error("Failed to start WebTransport server", "error", err)
+	wg.Add(1)
+	go func() {
+		if err := grpcServer.StartServer(ctx, &wg); err != nil {
+			slog.Error("gRPC server failed", "error", err)
+		}
+	}()
+
+	// WebTransport (streaming) server setup
+	stream, err := server.NewStreaming(cfg, sm)
+	if err != nil {
+		slog.Error("Failed to create WebTransport server", "error", err)
 		os.Exit(1)
 	}
-}
 
-// TODO: Move this to the appropriate package
-func handleWebTransportSession(conn *webtransport.Session) {
-	defer conn.CloseWithError(0, "connect closed")
-
-	for {
-		stream, err := conn.AcceptStream(context.Background())
-		if err != nil {
-			slog.Error("Failed to accept stream", "error", err)
-			return
+	wg.Add(1)
+	go func() {
+		if err = stream.StartServer(ctx, &wg); err != nil {
+			slog.Error("WebTransport server failed", "error", err)
 		}
+	}()
 
-		go handleWebTransportStream(stream)
-	}
-}
-
-// TODO: Move this to the appropriate package
-func handleWebTransportStream(stream *webtransport.Stream) {
-	defer stream.Close()
-
-	buffer := make([]byte, 256)
-	for {
-		n, err := stream.Read(buffer)
-		if err != nil {
-			if err != io.EOF {
-				slog.Error("Failed to read from stream", "error", err)
-			}
-			return
-		}
-
-		message := string(buffer[:n])
-		slog.Info("Received message over WebTransport", "message", message)
-
-		response := fmt.Sprintf("Server received message: %s", message)
-		_, err = stream.Write(([]byte(response)))
-		if err != nil {
-			slog.Error("Failed to write to stream", "error", err)
-			return
-		}
-	}
+	wg.Wait()
+	slog.Info("Muddy server shutting down")
 }

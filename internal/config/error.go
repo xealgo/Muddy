@@ -41,7 +41,10 @@ func (e ConfigError) Error() string {
 		builder.WriteString(fmt.Sprintf(" (key: %s)", e.KeyFile))
 	}
 
-	builder.WriteString(fmt.Sprintf(" - %v", e.Wrapped))
+	if e.Wrapped != nil {
+		builder.WriteString(" - ")
+		builder.WriteString(e.Wrapped.Error())
+	}
 
 	return builder.String()
 }

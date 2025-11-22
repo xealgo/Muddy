@@ -4,7 +4,7 @@
 // - protoc             v3.21.12
 // source: api/proto/health.proto
 
-package muddyapi
+package api
 
 import (
 	context "context"

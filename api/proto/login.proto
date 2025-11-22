@@ -1,0 +1,15 @@
+syntax = "proto3";
+package com.xealgo.muddy.api;
+option go_package = "./;api";
+
+message LoginRequest {
+    string username = 1;
+}
+
+message LoginResponse {
+    string session_uuid = 1;
+}
+
+service LoginService {
+    rpc Login(LoginRequest) returns (LoginResponse);
+}

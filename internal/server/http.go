@@ -1,10 +1,13 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
+	"sync"
+	"time"
 
 	"github.com/xealgo/muddy/internal/config"
 )
@@ -26,7 +29,7 @@ type HttpServer struct {
 // NewHttpServer creates a new HttpServer instance
 func NewHttpServer(cfg *config.Config, handlers ...HttpRouteHandler) (*HttpServer, error) {
 	hs := &HttpServer{
-		addr: fmt.Sprintf("localhost:%d", cfg.Port+1),
+		addr: fmt.Sprintf("localhost:%d", cfg.HttpPort),
 		cfg:  cfg,
 	}
 
@@ -40,12 +43,14 @@ func NewHttpServer(cfg *config.Config, handlers ...HttpRouteHandler) (*HttpServe
 	return hs, nil
 }
 
-// Setup initializes and returns the HTTP server listener
-func (server HttpServer) Setup() error {
+// Start starts the HTTP server
+func (server HttpServer) Start(ctx context.Context, wg *sync.WaitGroup) error {
 	h := &http.Server{
 		Addr:      server.addr,
 		TLSConfig: server.cfg.TLSConfig,
 	}
+
+	defer wg.Done()
 
 	if h.Addr == "" {
 		return fmt.Errorf("HTTP server address is empty, server will not start")
@@ -57,9 +62,33 @@ func (server HttpServer) Setup() error {
 
 	slog.Info("Starting HTTP server", "address", h.Addr)
 
-	if err := h.ListenAndServeTLS("", ""); err != nil {
-		return fmt.Errorf("HTTP server failed - %v", err)
+	// Handle errors created in the go routine
+	errChan := make(chan error, 1)
+
+	go func() {
+		if err := h.ListenAndServeTLS("", ""); err != nil {
+			errChan <- err
+			return
+		}
+	}()
+
+	select {
+	case err := <-errChan:
+		return fmt.Errorf("HTTP server failed to start: %w", err)
+	case <-ctx.Done():
+		//
 	}
+
+	slog.Info("Shutting down HTTP server")
+
+	shutdownCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	if err := h.Shutdown(shutdownCtx); err != nil {
+		return fmt.Errorf("HTTP server shutdown failed: %w", err)
+	}
+
+	slog.Info("HTTP server shut down gracefully")
 
 	return nil
 }

@@ -1,6 +1,7 @@
 package session
 
 import (
+	"fmt"
 	"sync"
 	"unsafe"
 
@@ -8,37 +9,65 @@ import (
 	"github.com/xealgo/muddy/internal/player"
 )
 
+type SessionManagerErrorType string
+
 const (
 	DefaultMaxSessions = 64 // Default maximum number of player sessions
+
+	// Errors
+	ErrorMaxPlayers SessionManagerErrorType = "MAX_PLAYERS_REACHED"
 )
+
+// Custom session manager error
+type SessionManagerError struct {
+	Type    SessionManagerErrorType
+	Message string
+	Wrapped error
+}
+
+// Unwrap returns the underlying error
+func (e SessionManagerError) Error() string {
+	return fmt.Sprintf("Type: %v, Message: %s, Wrapped: %w", e.Type, e.Message, e.Error())
+}
+
+// Unwrap returns the underlying error
+func (e SessionManagerError) Unwrap() error {
+	return e.Wrapped
+}
 
 // SessionManager manages player sessions in the game.
 type SessionManager struct {
-	maxSessions int
-	Active      []PlayerSession
-	Pending     map[string]*player.Player
+	Active  []PlayerSession
+	Pending map[string]*player.Player
 
-	mutex      *sync.RWMutex
-	sessionMap map[uintptr]string // Session pointer -> player UUID
+	maxSessions int
+	mutex       *sync.RWMutex
+	sessionMap  map[uintptr]string // Session pointer -> player UUID
 }
 
 // NewSessionManager creates a new SessionManager with a specified maximum number of sessions.
 func NewSessionManager(maxSessions int) *SessionManager {
 	return &SessionManager{
-		maxSessions: maxSessions,
 		Active:      make([]PlayerSession, maxSessions),
+		Pending:     make(map[string]*player.Player),
+		maxSessions: maxSessions,
 		mutex:       &sync.RWMutex{},
 		sessionMap:  make(map[uintptr]string),
-		Pending:     make(map[string]*player.Player),
 	}
 }
 
 // Register adds a new player to the pending list.
-func (sm *SessionManager) Register(player *player.Player) {
+func (sm *SessionManager) Register(player *player.Player) error {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
+	count := len(sm.sessionMap)
+	if count >= sm.maxSessions {
+		return &SessionManagerError{Type: ErrorMaxPlayers, Message: "Max player limit reached, please try again", Wrapped: nil}
+	}
+
 	sm.Pending[player.GetUUID()] = player
+	return nil
 }
 
 // Connect adds a new PlayerSession to the manager.

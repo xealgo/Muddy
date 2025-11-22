@@ -4,7 +4,7 @@
 // 	protoc        v3.21.12
 // source: api/proto/health.proto
 
-package muddyapi
+package api
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
@@ -60,7 +60,7 @@ func (*StatusRequest) Descriptor() ([]byte, []int) {
 type StatusResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	IsActive      bool                   `protobuf:"varint,1,opt,name=is_active,json=isActive,proto3" json:"is_active,omitempty"`
-	Uptime        int32                  `protobuf:"varint,2,opt,name=uptime,proto3" json:"uptime,omitempty"`
+	UptimeSeconds int32                  `protobuf:"varint,2,opt,name=uptime_seconds,json=uptimeSeconds,proto3" json:"uptime_seconds,omitempty"`
 	ActiveUsers   int32                  `protobuf:"varint,3,opt,name=active_users,json=activeUsers,proto3" json:"active_users,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -103,9 +103,9 @@ func (x *StatusResponse) GetIsActive() bool {
 	return false
 }
 
-func (x *StatusResponse) GetUptime() int32 {
+func (x *StatusResponse) GetUptimeSeconds() int32 {
 	if x != nil {
-		return x.Uptime
+		return x.UptimeSeconds
 	}
 	return 0
 }
@@ -122,13 +122,13 @@ var File_api_proto_health_proto protoreflect.FileDescriptor
 const file_api_proto_health_proto_rawDesc = "" +
 	"\n" +
 	"\x16api/proto/health.proto\x12\x14com.xealgo.muddy.api\"\x0f\n" +
-	"\rStatusRequest\"h\n" +
+	"\rStatusRequest\"w\n" +
 	"\x0eStatusResponse\x12\x1b\n" +
-	"\tis_active\x18\x01 \x01(\bR\bisActive\x12\x16\n" +
-	"\x06uptime\x18\x02 \x01(\x05R\x06uptime\x12!\n" +
+	"\tis_active\x18\x01 \x01(\bR\bisActive\x12%\n" +
+	"\x0euptime_seconds\x18\x02 \x01(\x05R\ruptimeSeconds\x12!\n" +
 	"\factive_users\x18\x03 \x01(\x05R\vactiveUsers2g\n" +
 	"\rHealthService\x12V\n" +
-	"\tGetStatus\x12#.com.xealgo.muddy.api.StatusRequest\x1a$.com.xealgo.muddy.api.StatusResponseB\rZ\v./;muddyapib\x06proto3"
+	"\tGetStatus\x12#.com.xealgo.muddy.api.StatusRequest\x1a$.com.xealgo.muddy.api.StatusResponseB\bZ\x06./;apib\x06proto3"
 
 var (
 	file_api_proto_health_proto_rawDescOnce sync.Once

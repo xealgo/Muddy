@@ -23,16 +23,18 @@ type RoomExits struct {
 func (exits RoomExits) GetExits() (string, int) {
 	count := 0
 
-	var builder strings.Builder
-	var doors []*Door = []*Door{exits.North, exits.South, exits.East, exits.West}
-	var labels []string = []string{"North", "South", "East", "West"}
+	builder := strings.Builder{}
+	doors := []*Door{exits.North, exits.South, exits.East, exits.West}
+	labels := []string{"North", "South", "East", "West"}
 
 	for direction, door := range doors {
-		if door != nil {
-			count++
-			label := labels[direction]
-			builder.WriteString(label + "\n")
+		if door == nil {
+			continue
 		}
+
+		count++
+		label := labels[direction]
+		builder.WriteString(label + "\n")
 	}
 
 	return builder.String(), count
@@ -61,7 +63,7 @@ func NewRoom(id int, name string, desc string) *Room {
 
 // GetBasicInfo returns the basic information of the room
 func (room Room) GetBasicInfo() string {
-	var builder strings.Builder
+	builder := strings.Builder{}
 
 	builder.WriteString(room.Name)
 	builder.WriteString("\n")
@@ -72,7 +74,7 @@ func (room Room) GetBasicInfo() string {
 
 // GetExits returns a string listing the available exits from the room
 func (room Room) GetExits() string {
-	var builder strings.Builder
+	builder := strings.Builder{}
 
 	exitsStr, count := room.Exits.GetExits()
 

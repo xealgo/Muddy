@@ -8,13 +8,25 @@ import (
 	"github.com/joho/godotenv"
 )
 
+const (
+	ConfigHttpPort = "HTTP_PORT"
+	ConfigGrpcPort = "GRPC_PORT"
+	ConfigWtPort   = "WT_PORT"
+	ConfigCertFile = "CERT_FILE"
+	ConfigKeyFile  = "KEY_FILE"
+)
+
 // Application configuration
 type Config struct {
-	Port      int
+	HttpPort  int
+	GrpcPort  int
+	WTPort    int
 	CertFile  string
 	KeyFile   string
 	TLSConfig *tls.Config
-	envPath   string
+
+	// Internal
+	envPath string
 }
 
 type ConfigOption func(*Config)
@@ -22,7 +34,9 @@ type ConfigOption func(*Config)
 // Creates a new Config instance
 func NewConfig(opts ...ConfigOption) (*Config, error) {
 	cfg := &Config{
-		Port:     8080,
+		HttpPort: 17000,
+		GrpcPort: 17001,
+		WTPort:   17002,
 		CertFile: "server.crt",
 		KeyFile:  "server.key",
 		envPath:  ".env",
@@ -60,9 +74,11 @@ func WithEnvPath(path string) ConfigOption {
 }
 
 // WithDefaults sets default configuration values
-func WithDefaults(port int, certFile string, keyFile string) ConfigOption {
+func WithDefaults(httpPort int, grpcPort int, wtPort int, certFile string, keyFile string) ConfigOption {
 	return func(cfg *Config) {
-		cfg.Port = port
+		cfg.HttpPort = httpPort
+		cfg.GrpcPort = grpcPort
+		cfg.WTPort = wtPort
 		cfg.CertFile = certFile
 		cfg.KeyFile = keyFile
 	}
@@ -101,25 +117,44 @@ func (cfg *Config) LoadCerts() (*tls.Config, error) {
 
 // Sets configuration values from environment variables
 func (cfg *Config) SetFromEnv() error {
-	envPort := GetEnv("PORT", "")
-
+	envPort := GetEnv(ConfigHttpPort, "")
 	if envPort != "" {
 		port, err := strconv.Atoi(envPort)
 		if err != nil {
-			return ConfigError{Type: InvalidValue, Message: "Invalid port value", EnvPath: cfg.envPath, Wrapped: err}
+			return ConfigError{Type: InvalidValue, Message: "Invalid http port value", EnvPath: cfg.envPath, Wrapped: err}
 		}
 
-		cfg.Port = port
+		cfg.HttpPort = port
 	}
 
-	cfg.CertFile = GetEnv("CERT_FILE", cfg.CertFile)
+	grpPort := GetEnv(ConfigGrpcPort, "")
+	if envPort != "" {
+		port, err := strconv.Atoi(grpPort)
+		if err != nil {
+			return ConfigError{Type: InvalidValue, Message: "Invalid grpc port value", EnvPath: cfg.envPath, Wrapped: err}
+		}
+
+		cfg.GrpcPort = port
+	}
+
+	wtPort := GetEnv(ConfigWtPort, "")
+	if envPort != "" {
+		port, err := strconv.Atoi(wtPort)
+		if err != nil {
+			return ConfigError{Type: InvalidValue, Message: "Invalid webtransport port value", EnvPath: cfg.envPath, Wrapped: err}
+		}
+
+		cfg.WTPort = port
+	}
+
+	cfg.CertFile = GetEnv(ConfigCertFile, cfg.CertFile)
 
 	_, err := os.Stat(cfg.CertFile)
 	if err != nil {
 		return ConfigError{Type: FileNotFound, Message: "Certificate file not found", EnvPath: cfg.envPath, CertFile: cfg.CertFile, Wrapped: err}
 	}
 
-	cfg.KeyFile = GetEnv("KEY_FILE", cfg.KeyFile)
+	cfg.KeyFile = GetEnv(ConfigKeyFile, cfg.KeyFile)
 
 	_, err = os.Stat(cfg.KeyFile)
 	if err != nil {
