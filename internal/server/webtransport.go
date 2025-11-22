@@ -1,3 +1,11 @@
+// ///////////////////////////////////////////////////////////////////////////////
+// webtransport.go
+// Work in progress.
+//
+// TODO: Refactor...the code is a mess right now.
+// TODO: Properly integrate with the command system once it's ready
+// TODO: Improve error handling, context, etc.
+// ////////////////////////////////////////////////////////////////////////////////
 package server
 
 import (
@@ -10,12 +18,15 @@ import (
 
 	"github.com/quic-go/quic-go/http3"
 	"github.com/quic-go/webtransport-go"
+	"github.com/xealgo/muddy/internal/command"
 	"github.com/xealgo/muddy/internal/config"
 	"github.com/xealgo/muddy/internal/session"
 )
 
 const (
-	DefaultMaxStreamBufferSize = 256
+	MaxBufferSize           = 1024
+	MinBufferSize           = 256
+	DefaultStreamBufferSize = 256
 )
 
 // Streaming represents a WebTransport server configuration
@@ -36,10 +47,11 @@ func NewStreaming(cfg *config.Config, sm *session.SessionManager) (*Streaming, e
 		sm:   sm,
 	}
 
-	s.maxStreamBufferSize = DefaultMaxStreamBufferSize
+	s.maxStreamBufferSize = DefaultStreamBufferSize
 
 	s.wt = &webtransport.Server{
 		CheckOrigin: func(r *http.Request) bool {
+			// TODO: Proper origin validation
 			// strings.Contains(r.Host, ":1700")
 			return true
 		},
@@ -53,7 +65,15 @@ func NewStreaming(cfg *config.Config, sm *session.SessionManager) (*Streaming, e
 }
 
 // SetMaxStreamBufferSize sets the maximum buffer size for each stream.
+// size will be clamped between MinBufferSize and MaxBufferSize.
 func (s *Streaming) SetMaxStreamBufferSize(size uint) {
+	// Clamp between min and max buffer size
+	if size > MaxBufferSize {
+		size = MaxBufferSize
+	} else if size < MinBufferSize {
+		size = MinBufferSize
+	}
+
 	s.maxStreamBufferSize = size
 }
 
@@ -104,18 +124,30 @@ func (s *Streaming) handleUpgrade(ctx context.Context, w http.ResponseWriter, r 
 		return nil
 	}
 
+	uuid := r.URL.Query().Get("uuid")
+	if len(uuid) == 0 {
+		return fmt.Errorf("player session uuid required")
+	}
+
 	session, err := s.wt.Upgrade(w, r)
 	if err != nil {
 		return fmt.Errorf("WebTransport upgrade failed: %w", err)
 	}
 
-	go s.handleSession(ctx, session)
+	// Handle the WebTransport session
+	go s.handleSession(ctx, session, uuid)
+
 	return nil
 }
 
 // handleSession manages a WebTransport session.
-func (s *Streaming) handleSession(ctx context.Context, conn *webtransport.Session) {
+func (s *Streaming) handleSession(ctx context.Context, conn *webtransport.Session, sessionUUID string) {
 	defer conn.CloseWithError(0, "connect closed")
+
+	if len(sessionUUID) == 0 {
+		slog.Error("Player session is nil")
+		return
+	}
 
 	shutdownContext, cancel := context.WithCancel(conn.Context())
 
@@ -126,9 +158,27 @@ func (s *Streaming) handleSession(ctx context.Context, conn *webtransport.Sessio
 
 	defer cancel()
 
+	if _, ok := s.sm.GetSession(sessionUUID); ok {
+		slog.Info("Player session already connected", "uuid", sessionUUID)
+		return
+	}
+
+	// We'll need another go routine that periodically clears out pending sessions
+	// after a certain time has passed.
+	//
+	// if ok := s.sm.RemovePending(sessionUUID); !ok {
+	// 	slog.Error("Failed to remove pending player session", "uuid", sessionUUID)
+	// }
+
 	for {
 		stream, err := conn.AcceptStream(conn.Context())
 		if err != nil {
+			player, exists := s.sm.GetSession(sessionUUID)
+			if exists {
+				fmt.Printf("%s has left the game\n", player.GetData().DisplayName)
+				s.sm.RemovePlayerBySession(conn)
+			}
+
 			if shutdownContext.Err() != nil {
 				slog.Info("Shutting down session stream handler")
 				return
@@ -138,16 +188,44 @@ func (s *Streaming) handleSession(ctx context.Context, conn *webtransport.Sessio
 			return
 		}
 
-		go s.processStream(ctx, stream)
+		player, err := s.sm.Connect(sessionUUID, conn, stream)
+		if err != nil {
+			slog.Error("Failed to connect player session", "uuid", sessionUUID)
+			stream.Write([]byte("Error creating player session. Disconnecting..."))
+			return
+		}
+
+		// Eventually broadcast this..
+		fmt.Printf("%s has joined the game\n", player.GetData().DisplayName)
+
+		player.WriteString(fmt.Sprintf("Greetings %s!\n", player.GetData().DisplayName))
+
+		go func(player *session.PlayerSession) {
+			s.processStream(ctx, player)
+
+			if player != nil {
+				fmt.Printf("%s has left the game\n", player.GetData().DisplayName)
+				s.sm.RemovePlayer(player.GetData().GetUUID())
+			}
+		}(player)
 	}
 }
 
 // processStream handles an individual WebTransport stream.
-func (s *Streaming) processStream(ctx context.Context, stream *webtransport.Stream) {
+func (s *Streaming) processStream(ctx context.Context, player *session.PlayerSession) {
+	stream := player.GetStream()
+
 	defer stream.Close()
 
 	buffer := make([]byte, s.maxStreamBufferSize)
 	for {
+		select {
+		case <-ctx.Done():
+			slog.Info("Shutting down stream processor due to context cancellation")
+			return
+		default:
+		}
+
 		n, err := stream.Read(buffer)
 		if err != nil {
 			if ctx.Err() != nil {
@@ -162,10 +240,26 @@ func (s *Streaming) processStream(ctx context.Context, stream *webtransport.Stre
 		}
 
 		message := string(buffer[:n])
+		if message == "PING" {
+			if err := player.WriteString("PONG"); err != nil {
+				slog.Error("Failed to write to stream", "error", err)
+				return
+			}
+			continue
+		}
 
-		response := fmt.Sprintf("Server received message: %s", message)
-		_, err = stream.Write(([]byte(response)))
+		// Quick hackery for testing
+		response := ""
+
+		p := command.Parser{}
+		cmd, err := p.ParseMoveCommand(message)
 		if err != nil {
+			response = fmt.Sprintln(err.Error())
+		} else {
+			response = fmt.Sprintf("You move %s\n", cmd.Value[0])
+		}
+
+		if err = player.WriteString(response); err != nil {
 			slog.Error("Failed to write to stream", "error", err)
 			return
 		}

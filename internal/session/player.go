@@ -1,6 +1,8 @@
 package session
 
 import (
+	"fmt"
+
 	"github.com/quic-go/webtransport-go"
 	"github.com/xealgo/muddy/internal/player"
 )
@@ -34,4 +36,14 @@ func (ps PlayerSession) GetSession() *webtransport.Session {
 // GetStream returns the webtransport stream.
 func (ps PlayerSession) GetStream() *webtransport.Stream {
 	return ps.stream
+}
+
+// WriteString writes a string message to the player's stream.
+func (ps PlayerSession) WriteString(message string) error {
+	if ps.stream == nil {
+		return fmt.Errorf("player session (%s) stream is nil", ps.data.GetUUID())
+	}
+
+	_, err := ps.stream.Write([]byte(message))
+	return err
 }

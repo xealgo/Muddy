@@ -4,15 +4,19 @@ import (
 	"bufio"
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"log"
 	"log/slog"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/gookit/color"
 	"github.com/manifoldco/promptui"
+	"github.com/quic-go/quic-go"
 	"github.com/quic-go/webtransport-go"
 	"github.com/xealgo/muddy/api"
 	"github.com/xealgo/muddy/internal/config"
@@ -44,9 +48,21 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Printf("Your session ID is %s\n", uuid)
+	// fmt.Printf("Your session ID is %s\n", uuid)
 
-	if err = connectWebTransport(cfg, uuid); err != nil {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
+	// Handle shutdown signal
+	go func() {
+		<-sigChan
+		cancel()
+	}()
+
+	if err = connectWebTransport(ctx, cfg, uuid); err != nil {
 		log.Fatalf("Failed to connect to WebTransport server: %v", err)
 	}
 }
@@ -99,29 +115,26 @@ func login(client api.LoginServiceClient) (string, error) {
 		return "", fmt.Errorf("login request failed: %w", err)
 	}
 
-	color.Green.Printf("Welcome %s!\n", username)
 	return resp.SessionUuid, nil
 }
 
 // connectWebTransport connects to the WebTransport server and starts the game session
-func connectWebTransport(cfg *config.Config, uuid string) error {
-	addr := fmt.Sprintf("https://localhost:%d/wt", cfg.WTPort)
+func connectWebTransport(ctx context.Context, cfg *config.Config, uuid string) error {
+	addr := fmt.Sprintf("https://localhost:%d/wt?uuid=%s", cfg.WTPort, uuid)
 
-	color.Blue.Printf("Connecting to WebTransport server @ %s\n", addr)
-
-	_ = uuid
+	color.Blue.Println("Connecting to Game Server")
 
 	dialer := webtransport.Dialer{
 		// Configure TLS, QUIC options, ALPN, etc., here if needed.
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	timeoutCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	_, sess, err := dialer.Dial(ctx, addr, nil)
+	_, sess, err := dialer.Dial(timeoutCtx, addr, nil)
 	if err != nil {
-		return fmt.Errorf("failed to create WebTransport session: %w", err)
+		return fmt.Errorf("failed to start session: %w", err)
 	}
 
 	cancel()
@@ -137,16 +150,49 @@ func connectWebTransport(cfg *config.Config, uuid string) error {
 	// Start message handling
 	go handleIncomingMessages(stream)
 
+	// Start keepalive routine
+	go sendKeepalive(ctx, stream)
+
 	// Handle user input
-	return handleUserInput(stream)
+	return handleUserInput(ctx, stream)
+}
+
+// sendKeepalive sends periodic heartbeat messages to keep connection alive
+func sendKeepalive(ctx context.Context, stream *webtransport.Stream) {
+	ticker := time.NewTicker(30 * time.Second) // Send heartbeat every 30 seconds
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			// Send heartbeat (server should ignore this or respond)
+			_, err := stream.Write([]byte("PING"))
+			if err != nil {
+				slog.Debug("Failed to send keepalive", "error", err)
+				return
+			}
+		}
+	}
 }
 
 // handleIncomingMessages listens for messages from the server
 func handleIncomingMessages(stream *webtransport.Stream) {
+	stream.Write([]byte("PING"))
+
 	buffer := make([]byte, 1024)
 	for {
 		n, err := stream.Read(buffer)
 		if err != nil {
+			var appError *quic.ApplicationError
+
+			if errors.As(err, &appError) {
+				color.Red.Println("Disconnected from server.")
+				os.Exit(0)
+				return
+			}
+
 			if err.Error() != "EOF" {
 				color.Red.Printf("Error reading from server: %v\n", err)
 			}
@@ -154,15 +200,27 @@ func handleIncomingMessages(stream *webtransport.Stream) {
 		}
 
 		message := string(buffer[:n])
-		color.Cyan.Printf("Server: %s\n", message)
+		if message == "PONG" {
+			continue
+		}
+
+		message = strings.Replace(message, "PONG", "", 1)
+
+		color.Cyan.Print(message)
 	}
 }
 
 // handleUserInput processes user commands and sends them to server
-func handleUserInput(stream *webtransport.Stream) error {
+func handleUserInput(ctx context.Context, stream *webtransport.Stream) error {
 	scanner := bufio.NewScanner(os.Stdin)
 
 	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+		}
+
 		fmt.Print("> ")
 		if !scanner.Scan() {
 			break
@@ -174,7 +232,7 @@ func handleUserInput(stream *webtransport.Stream) error {
 		}
 
 		if input == "quit" || input == "exit" {
-			color.Yellow.Println("Goodbye!")
+			color.Yellow.Println("Until next time!")
 			return nil
 		}
 

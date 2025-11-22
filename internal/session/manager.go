@@ -37,7 +37,7 @@ func (e SessionManagerError) Unwrap() error {
 
 // SessionManager manages player sessions in the game.
 type SessionManager struct {
-	Active  []PlayerSession
+	Active  []*PlayerSession
 	Pending map[string]*player.Player
 
 	maxSessions int
@@ -48,7 +48,7 @@ type SessionManager struct {
 // NewSessionManager creates a new SessionManager with a specified maximum number of sessions.
 func NewSessionManager(maxSessions int) *SessionManager {
 	return &SessionManager{
-		Active:      make([]PlayerSession, maxSessions),
+		Active:      make([]*PlayerSession, maxSessions),
 		Pending:     make(map[string]*player.Player),
 		maxSessions: maxSessions,
 		mutex:       &sync.RWMutex{},
@@ -71,30 +71,30 @@ func (sm *SessionManager) Register(player *player.Player) error {
 }
 
 // Connect adds a new PlayerSession to the manager.
-func (sm *SessionManager) Connect(uuid string, session *webtransport.Session, stream *webtransport.Stream) (*PlayerSession, bool) {
+func (sm *SessionManager) Connect(uuid string, session *webtransport.Session, stream *webtransport.Stream) (*PlayerSession, error) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
 	playerData, exists := sm.Pending[uuid]
 	if !exists {
-		return nil, false
+		return nil, fmt.Errorf("no pending session found")
 	}
 
 	for i := 0; i < sm.maxSessions; i++ {
-		var data = sm.Active[i].GetData()
-		if data == nil {
+		if sm.Active[i] == nil {
 			ps := NewPlayerSession(playerData, session, stream)
-			sm.Active[i] = *ps
+			sm.Active[i] = ps
 			sessionPtr := uintptr(unsafe.Pointer(ps.GetSession()))
-			sm.sessionMap[sessionPtr] = data.GetUUID()
+
+			sm.sessionMap[sessionPtr] = ps.GetData().GetUUID()
 
 			delete(sm.Pending, uuid)
 
-			return ps, true
+			return ps, nil
 		}
 	}
 
-	return nil, false
+	return nil, fmt.Errorf("unable to create player session")
 }
 
 // RemovePlayer removes a PlayerSession from the manager.
@@ -109,8 +109,8 @@ func (sm *SessionManager) RemovePlayerBySession(session *webtransport.Session) b
 	}
 
 	for i := 0; i < sm.maxSessions; i++ {
-		if sm.Active[i].GetData() != nil && sm.Active[i].GetData().GetUUID() == uuid {
-			sm.Active[i] = PlayerSession{}
+		if sm.Active[i] != nil && sm.Active[i].GetData() != nil && sm.Active[i].GetData().GetUUID() == uuid {
+			sm.Active[i] = nil
 			delete(sm.sessionMap, sessionPtr)
 			return true
 		}
@@ -120,15 +120,28 @@ func (sm *SessionManager) RemovePlayerBySession(session *webtransport.Session) b
 }
 
 // RemovePlayer removes a PlayerSession from the manager.
-func (sm *SessionManager) RemovePlayer(ps PlayerSession) bool {
+func (sm *SessionManager) RemovePlayer(uuid string) bool {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
 	for i := 0; i < sm.maxSessions; i++ {
-		if sm.Active[i].GetData() != nil && sm.Active[i].GetData().GetUUID() == ps.GetData().GetUUID() {
-			sm.Active[i] = PlayerSession{}
+		if sm.Active[i] != nil && sm.Active[i].GetData() != nil && sm.Active[i].GetData().GetUUID() == uuid {
+			sm.Active[i] = nil
 			return true
 		}
+	}
+
+	return false
+}
+
+// RemovePending removes a player from the pending list.
+func (sm *SessionManager) RemovePending(uuid string) bool {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+
+	if _, exists := sm.Pending[uuid]; exists {
+		delete(sm.Pending, uuid)
+		return true
 	}
 
 	return false
@@ -140,8 +153,8 @@ func (sm *SessionManager) GetSession(uuid string) (*PlayerSession, bool) {
 	defer sm.mutex.RUnlock()
 
 	for i := 0; i < sm.maxSessions; i++ {
-		if sm.Active[i].GetData() != nil && sm.Active[i].GetData().GetUUID() == uuid {
-			return &sm.Active[i], true
+		if sm.Active[i] != nil && sm.Active[i].GetData() != nil && sm.Active[i].GetData().GetUUID() == uuid {
+			return sm.Active[i], true
 		}
 	}
 
