@@ -11,12 +11,17 @@ type CommandParseFunc = func(input string) (any, error)
 
 // Parser handles command parsing.
 type Parser struct {
-	//
+	// Internal cached parser funcs
+	parseFuncs []struct {
+		typ CommandType
+		fn  CommandParseFunc
+	}
 }
 
-// ParseAnyCommand parses any command from the input string.
-func (p *Parser) ParseAnyCommand(input string) (CommandType, interface{}, error) {
-	parseFuncs := []struct {
+// NewParser creates a new Parser instance.
+func NewParser() *Parser {
+	p := &Parser{}
+	p.parseFuncs = []struct {
 		typ CommandType
 		fn  CommandParseFunc
 	}{
@@ -25,7 +30,16 @@ func (p *Parser) ParseAnyCommand(input string) (CommandType, interface{}, error)
 		{CommandPickup, func(input string) (any, error) { return p.ParsePickupCommand(input) }},
 	}
 
-	for _, pf := range parseFuncs {
+	return p
+}
+
+// ParseAnyCommand parses any command from the input string.
+func (p *Parser) ParseAnyCommand(input string) (CommandType, interface{}, error) {
+	if p.parseFuncs == nil {
+		p = NewParser()
+	}
+
+	for _, pf := range p.parseFuncs {
 		cmd, err := pf.fn(input)
 		if err == nil {
 			return pf.typ, cmd, nil
