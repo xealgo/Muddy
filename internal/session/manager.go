@@ -29,7 +29,7 @@ type SessionManagerError struct {
 
 // Unwrap returns the underlying error
 func (e SessionManagerError) Error() string {
-	return fmt.Sprintf("Type: %v, Message: %s, Wrapped: %w", e.Type, e.Message, e.Error())
+	return fmt.Sprintf("Type: %v, Message: %s, Wrapped: %v", e.Type, e.Message, e.Wrapped)
 }
 
 // Unwrap returns the underlying error
