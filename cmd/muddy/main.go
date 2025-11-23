@@ -16,6 +16,7 @@ import (
 	"github.com/xealgo/muddy/internal/server"
 	"github.com/xealgo/muddy/internal/services"
 	"github.com/xealgo/muddy/internal/session"
+	"github.com/xealgo/muddy/internal/world"
 )
 
 func main() {
@@ -33,8 +34,15 @@ func main() {
 	// Session manager instance used for managing player sessions
 	sm := session.NewSessionManager(64)
 
-	// Game state instance
-	gs := game.NewGameState()
+	world := world.NewWorld()
+	err = world.LoadRoomsFromYaml("./data/test-world.yml")
+	if err != nil {
+		slog.Error("Failed to load world data", "error", err)
+		os.Exit(1)
+	}
+
+	game := game.NewGame(world)
+	game.Sm = sm
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -76,7 +84,7 @@ func main() {
 
 	// GRPC server setup
 	grpcServer := server.NewGrpcServer(cfg)
-	services.RegisterHealthService(cfg, grpcServer.Server, gs, sm)
+	services.RegisterHealthService(cfg, grpcServer.Server, game.State(), sm)
 	services.RegisterLoginService(cfg, grpcServer.Server, sm)
 
 	wg.Add(1)
@@ -87,7 +95,7 @@ func main() {
 	}()
 
 	// WebTransport (streaming) server setup
-	stream, err := server.NewStreaming(cfg, sm)
+	stream, err := server.NewStreaming(cfg, sm, game)
 	if err != nil {
 		slog.Error("Failed to create WebTransport server", "error", err)
 		os.Exit(1)

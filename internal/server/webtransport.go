@@ -18,8 +18,8 @@ import (
 
 	"github.com/quic-go/quic-go/http3"
 	"github.com/quic-go/webtransport-go"
-	"github.com/xealgo/muddy/internal/command"
 	"github.com/xealgo/muddy/internal/config"
+	"github.com/xealgo/muddy/internal/game"
 	"github.com/xealgo/muddy/internal/session"
 )
 
@@ -35,16 +35,18 @@ type Streaming struct {
 	addr string
 	wt   *webtransport.Server
 	sm   *session.SessionManager
+	game *game.Game
 
 	maxStreamBufferSize uint
 }
 
 // NewStreaming creates a new Streaming instance
-func NewStreaming(cfg *config.Config, sm *session.SessionManager) (*Streaming, error) {
+func NewStreaming(cfg *config.Config, sm *session.SessionManager, game *game.Game) (*Streaming, error) {
 	s := &Streaming{
 		cfg:  cfg,
 		addr: fmt.Sprintf(":%d", cfg.WTPort),
 		sm:   sm,
+		game: game,
 	}
 
 	s.maxStreamBufferSize = DefaultStreamBufferSize
@@ -248,16 +250,7 @@ func (s *Streaming) processStream(ctx context.Context, player *session.PlayerSes
 			continue
 		}
 
-		// Quick hackery for testing
-		response := ""
-
-		p := command.Parser{}
-		cmd, err := p.ParseMoveCommand(message)
-		if err != nil {
-			response = fmt.Sprintln(err.Error())
-		} else {
-			response = fmt.Sprintf("You move %s\n", cmd.Direction)
-		}
+		response := s.game.ProcessPlayerCommand(player, message)
 
 		if err = player.WriteString(response); err != nil {
 			slog.Error("Failed to write to stream", "error", err)

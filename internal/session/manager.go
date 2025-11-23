@@ -2,6 +2,8 @@ package session
 
 import (
 	"fmt"
+	"log/slog"
+	"strings"
 	"sync"
 	"unsafe"
 
@@ -167,4 +169,60 @@ func (sm *SessionManager) GetActiveSessionCount() int {
 	defer sm.mutex.RUnlock()
 
 	return len(sm.sessionMap)
+}
+
+// GetActivePlayers returns a slice of all active PlayerSessions.
+func (sm *SessionManager) GetActivePlayers() []*PlayerSession {
+	sm.mutex.RLock()
+	defer sm.mutex.RUnlock()
+
+	active := []*PlayerSession{}
+	for _, ps := range sm.Active {
+		if ps != nil {
+			active = append(active, ps)
+		}
+	}
+
+	return active
+}
+
+// SendToPlayer sends a message to a specific player by UUID.
+func (sm SessionManager) SendToPlayer(playerUuid string, message string) {
+	active := sm.GetActivePlayers()
+	trimmed := strings.TrimRight(message, "\n") + "\n"
+
+	var session *PlayerSession
+
+	// Eventually we'll want to track players in a map for fast lookup..
+	for _, ps := range active {
+		if ps.GetData().GetUUID() == playerUuid {
+			session = ps
+			break
+		}
+	}
+
+	if session != nil {
+		err := session.WriteString(trimmed)
+		if err != nil {
+			slog.Error("failed to send to player %s: %w", session.data.DisplayName, err)
+		}
+	}
+}
+
+// BroadcastToRoom sends a message to all players in a specific room.
+func (sm SessionManager) BroadcastToRoom(roomId int, message string) {
+	active := sm.GetActivePlayers()
+	trimmed := strings.TrimRight(message, "\n") + "\n"
+
+	// This will be slow if we ramp the max player count to 1000+
+	// At that point, we'll want to create a slice within the room struct
+	// or a shared map roomId -> []playerId.
+	for _, ps := range active {
+		if ps.GetData().CurrentRoomId == roomId {
+			err := ps.WriteString(trimmed)
+			if err != nil {
+				slog.Error("failed to broadcast to player %s: %w", ps.GetData().DisplayName, err)
+			}
+		}
+	}
 }
