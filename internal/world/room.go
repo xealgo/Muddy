@@ -3,6 +3,8 @@ package world
 import (
 	"fmt"
 	"strings"
+
+	"github.com/xealgo/muddy/internal/session"
 )
 
 // Room represents a room in the game world
@@ -37,8 +39,8 @@ func (room Room) GetBasicInfo() string {
 	return builder.String()
 }
 
-// GetExits returns a string listing the available exits from the room
-func (room Room) GetExits() string {
+// GetDetails returns detailed information about the room, including exits, items, etc.
+func (room Room) GetDetails(ps *session.PlayerSession, sm *session.SessionManager) string {
 	builder := strings.Builder{}
 
 	exitsStr, count := room.Exits.GetExits()
@@ -61,6 +63,24 @@ func (room Room) GetExits() string {
 			builder.WriteString("- ")
 			builder.WriteString(item.String())
 		}
+	}
+
+	players := sm.GetPlayersInRoom(room.ID, ps.GetData().GetUUID())
+	if len(players) > 0 {
+		playerCount := 0
+
+		psb := strings.Builder{}
+
+		for _, player := range players {
+			if player.CurrentRoomId == room.ID {
+				playerCount++
+				psb.WriteString(fmt.Sprintf("- %s\n", player.DisplayName))
+			}
+		}
+
+		builder.WriteString("You see ")
+		builder.WriteString(fmt.Sprintf("%d players:\n", playerCount))
+		builder.WriteString(psb.String())
 	}
 
 	return builder.String()

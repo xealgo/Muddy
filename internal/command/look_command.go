@@ -23,7 +23,7 @@ func (cmd LookCommand) Execute(game *game.Game, ps *session.PlayerSession) strin
 
 	builder.WriteString("You look around the room\n")
 	builder.WriteString("You see ")
-	builder.WriteString(currentRoom.GetExits())
+	builder.WriteString(currentRoom.GetDetails(ps, game.Sm))
 
 	return builder.String()
 }

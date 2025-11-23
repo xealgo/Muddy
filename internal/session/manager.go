@@ -186,6 +186,22 @@ func (sm *SessionManager) GetActivePlayers() []*PlayerSession {
 	return active
 }
 
+// GetPlayersInRoom returns a slice of players currently in the specified room.
+func (sm *SessionManager) GetPlayersInRoom(roomId int, skipPlayerUUID string) []player.Player {
+	sm.mutex.RLock()
+	defer sm.mutex.RUnlock()
+
+	players := []player.Player{}
+
+	for _, ps := range sm.Active {
+		if ps != nil && ps.GetData().CurrentRoomId == roomId && ps.data.GetUUID() != skipPlayerUUID {
+			players = append(players, *ps.GetData())
+		}
+	}
+
+	return players
+}
+
 // SendToPlayer sends a message to a specific player by UUID.
 func (sm SessionManager) SendToPlayer(playerUuid string, message string) {
 	active := sm.GetActivePlayers()
