@@ -1,4 +1,4 @@
-package session
+package game
 
 import (
 	"fmt"
@@ -8,7 +8,6 @@ import (
 	"unsafe"
 
 	"github.com/quic-go/webtransport-go"
-	"github.com/xealgo/muddy/internal/player"
 )
 
 type SessionManagerErrorType string
@@ -39,8 +38,8 @@ func (e SessionManagerError) Unwrap() error {
 
 // SessionManager manages player sessions in the game.
 type SessionManager struct {
-	Active  []*PlayerSession
-	Pending map[string]*player.Player
+	Active  []*Player
+	Pending map[string]*Player
 
 	maxSessions int
 	mutex       *sync.RWMutex
@@ -50,8 +49,8 @@ type SessionManager struct {
 // NewSessionManager creates a new SessionManager with a specified maximum number of sessions.
 func NewSessionManager(maxSessions int) *SessionManager {
 	return &SessionManager{
-		Active:      make([]*PlayerSession, maxSessions),
-		Pending:     make(map[string]*player.Player),
+		Active:      make([]*Player, maxSessions),
+		Pending:     make(map[string]*Player),
 		maxSessions: maxSessions,
 		mutex:       &sync.RWMutex{},
 		sessionMap:  make(map[uintptr]string),
@@ -59,7 +58,7 @@ func NewSessionManager(maxSessions int) *SessionManager {
 }
 
 // Register adds a new player to the pending list.
-func (sm *SessionManager) Register(player *player.Player) error {
+func (sm *SessionManager) Register(player *Player) error {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
@@ -73,22 +72,24 @@ func (sm *SessionManager) Register(player *player.Player) error {
 }
 
 // Connect adds a new PlayerSession to the manager.
-func (sm *SessionManager) Connect(uuid string, session *webtransport.Session, stream *webtransport.Stream) (*PlayerSession, error) {
+func (sm *SessionManager) Connect(uuid string, session *webtransport.Session, stream *webtransport.Stream) (*Player, error) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
-	playerData, exists := sm.Pending[uuid]
+	player, exists := sm.Pending[uuid]
 	if !exists {
 		return nil, fmt.Errorf("no pending session found")
 	}
 
 	for i := 0; i < sm.maxSessions; i++ {
 		if sm.Active[i] == nil {
-			ps := NewPlayerSession(playerData, session, stream)
+			ps := player
+			ps.SetSession(session)
+			ps.SetStream(stream)
 			sm.Active[i] = ps
 			sessionPtr := uintptr(unsafe.Pointer(ps.GetSession()))
 
-			sm.sessionMap[sessionPtr] = ps.GetData().GetUUID()
+			sm.sessionMap[sessionPtr] = ps.GetUUID()
 
 			delete(sm.Pending, uuid)
 
@@ -111,7 +112,7 @@ func (sm *SessionManager) RemovePlayerBySession(session *webtransport.Session) b
 	}
 
 	for i := 0; i < sm.maxSessions; i++ {
-		if sm.Active[i] != nil && sm.Active[i].GetData() != nil && sm.Active[i].GetData().GetUUID() == uuid {
+		if sm.Active[i] != nil && sm.Active[i].session != nil && sm.Active[i].GetUUID() == uuid {
 			sm.Active[i] = nil
 			delete(sm.sessionMap, sessionPtr)
 			return true
@@ -127,7 +128,7 @@ func (sm *SessionManager) RemovePlayer(uuid string) bool {
 	defer sm.mutex.Unlock()
 
 	for i := 0; i < sm.maxSessions; i++ {
-		if sm.Active[i] != nil && sm.Active[i].GetData() != nil && sm.Active[i].GetData().GetUUID() == uuid {
+		if sm.Active[i] != nil && sm.Active[i].GetUUID() == uuid {
 			sm.Active[i] = nil
 			return true
 		}
@@ -150,12 +151,12 @@ func (sm *SessionManager) RemovePending(uuid string) bool {
 }
 
 // GetSession retrieves a PlayerSession by player UUID.
-func (sm *SessionManager) GetSession(uuid string) (*PlayerSession, bool) {
+func (sm *SessionManager) GetSession(uuid string) (*Player, bool) {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 
 	for i := 0; i < sm.maxSessions; i++ {
-		if sm.Active[i] != nil && sm.Active[i].GetData() != nil && sm.Active[i].GetData().GetUUID() == uuid {
+		if sm.Active[i] != nil && sm.Active[i].session != nil && sm.Active[i].GetUUID() == uuid {
 			return sm.Active[i], true
 		}
 	}
@@ -172,11 +173,11 @@ func (sm *SessionManager) GetActiveSessionCount() int {
 }
 
 // GetActivePlayers returns a slice of all active PlayerSessions.
-func (sm *SessionManager) GetActivePlayers() []*PlayerSession {
+func (sm *SessionManager) GetActivePlayers() []*Player {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 
-	active := []*PlayerSession{}
+	active := []*Player{}
 	for _, ps := range sm.Active {
 		if ps != nil {
 			active = append(active, ps)
@@ -187,15 +188,15 @@ func (sm *SessionManager) GetActivePlayers() []*PlayerSession {
 }
 
 // GetPlayersInRoom returns a slice of players currently in the specified room.
-func (sm *SessionManager) GetPlayersInRoom(roomId int, skipPlayerUUID string) []player.Player {
+func (sm *SessionManager) GetPlayersInRoom(roomId int, skipPlayerUUID string) []Player {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 
-	players := []player.Player{}
+	players := []Player{}
 
 	for _, ps := range sm.Active {
-		if ps != nil && ps.GetData().CurrentRoomId == roomId && ps.data.GetUUID() != skipPlayerUUID {
-			players = append(players, *ps.GetData())
+		if ps != nil && ps.CurrentRoomId == roomId && ps.GetUUID() != skipPlayerUUID {
+			players = append(players, *ps)
 		}
 	}
 
@@ -207,20 +208,20 @@ func (sm SessionManager) SendToPlayer(playerUuid string, message string) {
 	active := sm.GetActivePlayers()
 	trimmed := strings.TrimRight(message, "\n") + "\n"
 
-	var session *PlayerSession
+	var player *Player
 
 	// Eventually we'll want to track players in a map for fast lookup..
 	for _, ps := range active {
-		if ps.GetData().GetUUID() == playerUuid {
-			session = ps
+		if ps.GetUUID() == playerUuid {
+			player = ps
 			break
 		}
 	}
 
-	if session != nil {
-		err := session.WriteString(trimmed)
+	if player != nil {
+		err := player.WriteString(trimmed)
 		if err != nil {
-			slog.Error("failed to send to player %s: %w", session.data.DisplayName, err)
+			slog.Error("failed to send to player %s: %w", player.DisplayName, err)
 		}
 	}
 }

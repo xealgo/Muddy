@@ -2,10 +2,9 @@ package command
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/xealgo/muddy/internal/game"
-	"github.com/xealgo/muddy/internal/session"
-	"github.com/xealgo/muddy/internal/world"
 )
 
 // Directions for movement
@@ -18,46 +17,43 @@ const (
 
 // MoveCommand type represents a move command with a direction.
 type MoveCommand struct {
-	Direction string
+	Choice string
 }
 
 // executeMoveCommand handles the execution of a move command.
-func (cmd MoveCommand) Execute(game *game.Game, ps *session.PlayerSession) string {
-	currentRoom, ok := game.World.GetRoomById(ps.GetData().CurrentRoomId)
+func (cmd MoveCommand) Execute(game *game.Game, ps *game.Player) string {
+	currentRoom, ok := game.World.GetRoomById(ps.CurrentRoomId)
 	if !ok {
 		return MessageInvalidMove
 	}
 
-	switch cmd.Direction {
-	case MoveDirNorth:
-		return doMove(ps, currentRoom.Exits.North, &cmd)
-	case MoveDirSouth:
-		return doMove(ps, currentRoom.Exits.South, &cmd)
-	case MoveDirEast:
-		return doMove(ps, currentRoom.Exits.East, &cmd)
-	case MoveDirWest:
-		return doMove(ps, currentRoom.Exits.West, &cmd)
-	default:
-		return MessageInvalidMove
-	}
-}
-
-// GetMoveDirections returns a list of valid move directions.
-func GetMoveDirections() []string {
-	return []string{MoveDirNorth, MoveDirSouth, MoveDirEast, MoveDirWest}
-}
-
-// doMove performs the move action for the player session.
-func doMove(ps *session.PlayerSession, door *world.Door, cmd *MoveCommand) string {
-	if door == nil {
+	if !currentRoom.IsValidDoorChoice(cmd.Choice) {
 		return MessageInvalidMove
 	}
 
-	if door.IsLocked {
-		return MessageDoorLocked
+	for _, door := range currentRoom.Doors {
+		if door.MoveCommand != cmd.Choice {
+			continue
+		}
+
+		if door.IsLocked {
+			return MessageDoorLocked
+		}
+
+		ps.CurrentRoomId = door.RoomId
 	}
 
-	ps.GetData().CurrentRoomId = door.RoomId
+	builder := strings.Builder{}
+	builder.WriteString(fmt.Sprintf(MessageMoveSuccess, cmd.Choice))
+	builder.WriteString("\nYou entered the ")
 
-	return fmt.Sprintf(MessageMoveSuccess, cmd.Direction)
+	currentRoom, ok = game.World.GetRoomById(ps.CurrentRoomId)
+	if !ok {
+		return "The void..no there is a bug here"
+	}
+
+	builder.WriteString(currentRoom.GetBasicInfo())
+	builder.WriteByte('\n')
+
+	return builder.String()
 }

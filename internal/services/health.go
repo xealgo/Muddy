@@ -6,7 +6,6 @@ import (
 	"github.com/xealgo/muddy/api"
 	"github.com/xealgo/muddy/internal/config"
 	"github.com/xealgo/muddy/internal/game"
-	"github.com/xealgo/muddy/internal/session"
 	"google.golang.org/grpc"
 )
 
@@ -15,11 +14,11 @@ type HealthService struct {
 	api.HealthServiceServer
 	cfg   *config.Config
 	state *game.GameState
-	sm    *session.SessionManager
+	sm    *game.SessionManager
 }
 
 // NewHealthService creates a new HealthService instance.
-func RegisterHealthService(cfg *config.Config, server *grpc.Server, state *game.GameState, sm *session.SessionManager) {
+func RegisterHealthService(cfg *config.Config, server *grpc.Server, state *game.GameState, sm *game.SessionManager) {
 	hs := &HealthService{
 		cfg:   cfg,
 		state: state,

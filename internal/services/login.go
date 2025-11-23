@@ -5,8 +5,7 @@ import (
 
 	"github.com/xealgo/muddy/api"
 	"github.com/xealgo/muddy/internal/config"
-	"github.com/xealgo/muddy/internal/player"
-	"github.com/xealgo/muddy/internal/session"
+	"github.com/xealgo/muddy/internal/game"
 	"google.golang.org/grpc"
 )
 
@@ -14,11 +13,11 @@ import (
 type LoginService struct {
 	api.LoginServiceServer
 	cfg *config.Config
-	sm  *session.SessionManager
+	sm  *game.SessionManager
 }
 
 // LoginService registers the LoginService with the gRPC server.
-func RegisterLoginService(cfg *config.Config, server *grpc.Server, sm *session.SessionManager) {
+func RegisterLoginService(cfg *config.Config, server *grpc.Server, sm *game.SessionManager) {
 	service := &LoginService{
 		cfg: cfg,
 		sm:  sm,
@@ -29,7 +28,7 @@ func RegisterLoginService(cfg *config.Config, server *grpc.Server, sm *session.S
 
 // Login handles user login requests.
 func (s *LoginService) Login(ctx context.Context, req *api.LoginRequest) (*api.LoginResponse, error) {
-	player := player.NewPlayer(req.Username, req.Username)
+	player := game.NewPlayer(req.Username, req.Username)
 
 	err := s.sm.Register(player)
 	if err != nil {

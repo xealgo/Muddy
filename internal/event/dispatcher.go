@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/xealgo/muddy/internal/session"
+	"github.com/xealgo/muddy/internal/game"
 )
 
 // Simple event data type
@@ -22,7 +22,7 @@ type EventDispatcher struct {
 }
 
 // SendToRoom sends an event to all players in a specific room.
-func (e EventDispatcher) SendToRoom(event Event, sm *session.SessionManager, roomId int) error {
+func (e EventDispatcher) SendToRoom(event Event, sm *game.SessionManager, roomId int) error {
 	data, err := json.Marshal(event)
 	if err != nil {
 		return fmt.Errorf("unable to send event %s to room %d: %w", event.Type, roomId, err)
@@ -36,10 +36,10 @@ func (e EventDispatcher) SendToRoom(event Event, sm *session.SessionManager, roo
 	// At that point, we'll want to create a slice within the room struct
 	// or a shared map roomId -> []playerId.
 	for _, ps := range active {
-		if ps.GetData().CurrentRoomId == roomId {
+		if ps.CurrentRoomId == roomId {
 			err := ps.WriteString(prefixed)
 			if err != nil {
-				slog.Error("failed to broadcast to player %s: %w", ps.GetData().DisplayName, err)
+				slog.Error("failed to broadcast to player %s: %w", ps.DisplayName, err)
 			}
 		}
 	}

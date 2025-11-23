@@ -1,30 +1,35 @@
 - id: 1
   name: Central Hub
   description: The bustling center of activity.
-  exits:
-    north:
+  doors:
+    - name: north
       isLocked: false
       roomId: 2
-    east:
+      moveCommand: to the north
+    - name: east
       isLocked: true
       roomId: 3
+      moveCommand: to the east
 
 - id: 2
   name: North Wing
   description: A quiet area with study rooms.
-  exits:
-    south:
+  doors:
+    - name: south
       isLocked: false
       roomId: 1
+      moveCommand: to the south
   items:
     - name: Pocket Watch
-      description: Doesn't seem to be ticking
+      type: trinket
+      description: It doesn't seem to be ticking
       sellingPrice: 2
 
 - id: 3
   name: East Garden
   description: A beautiful garden with flowers.
-  exits:
-    west:
+  doors:
+    - name: west
       isLocked: true
       roomId: 1
+      moveCommand: to the west

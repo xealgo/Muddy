@@ -1,4 +1,4 @@
-package world
+package game
 
 import (
 	"fmt"
@@ -40,14 +40,14 @@ func (w *World) LoadRoomsFromYaml(file string) error {
 		return fmt.Errorf("failed to parse rooms from file %s: %w", file, err)
 	}
 
-	w.populateRoomMap()
-
-	return nil
-}
-
-// populateRoomMap populates the room map for quick lookup.
-func (w *World) populateRoomMap() {
 	for _, room := range w.rooms {
+		if !room.Validate() {
+			return fmt.Errorf("invalid room data found in file %s", file)
+		}
+
+		room.Init()
 		w.roomMap[room.ID] = room
 	}
+
+	return nil
 }

@@ -21,7 +21,6 @@ import (
 	"github.com/xealgo/muddy/internal/command"
 	"github.com/xealgo/muddy/internal/config"
 	"github.com/xealgo/muddy/internal/game"
-	"github.com/xealgo/muddy/internal/session"
 )
 
 const (
@@ -35,7 +34,7 @@ type Streaming struct {
 	addr      string
 	cfg       *config.Config
 	wt        *webtransport.Server
-	sm        *session.SessionManager
+	sm        *game.SessionManager
 	game      *game.Game
 	cmdRunner *command.Runner
 
@@ -43,7 +42,7 @@ type Streaming struct {
 }
 
 // NewStreaming creates a new Streaming instance
-func NewStreaming(cfg *config.Config, sm *session.SessionManager, game *game.Game) (*Streaming, error) {
+func NewStreaming(cfg *config.Config, sm *game.SessionManager, game *game.Game) (*Streaming, error) {
 	s := &Streaming{
 		cfg:       cfg,
 		addr:      fmt.Sprintf(":%d", cfg.WTPort),
@@ -181,7 +180,7 @@ func (s *Streaming) handleSession(ctx context.Context, conn *webtransport.Sessio
 		if err != nil {
 			player, exists := s.sm.GetSession(sessionUUID)
 			if exists {
-				fmt.Printf("%s has left the game\n", player.GetData().DisplayName)
+				fmt.Printf("%s has left the game\n", player.DisplayName)
 				s.sm.RemovePlayerBySession(conn)
 			}
 
@@ -202,23 +201,23 @@ func (s *Streaming) handleSession(ctx context.Context, conn *webtransport.Sessio
 		}
 
 		// Eventually broadcast this..
-		fmt.Printf("%s has joined the game\n", player.GetData().DisplayName)
+		fmt.Printf("%s has joined the game\n", player.DisplayName)
 
 		s.game.GreetPlayer(player)
 
-		go func(player *session.PlayerSession) {
+		go func(player *game.Player) {
 			s.processStream(ctx, player)
 
 			if player != nil {
-				fmt.Printf("%s has left the game\n", player.GetData().DisplayName)
-				s.sm.RemovePlayer(player.GetData().GetUUID())
+				fmt.Printf("%s has left the game\n", player.DisplayName)
+				s.sm.RemovePlayer(player.GetUUID())
 			}
 		}(player)
 	}
 }
 
 // processStream handles an individual WebTransport stream.
-func (s *Streaming) processStream(ctx context.Context, player *session.PlayerSession) {
+func (s *Streaming) processStream(ctx context.Context, player *game.Player) {
 	stream := player.GetStream()
 
 	defer stream.Close()

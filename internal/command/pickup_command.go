@@ -2,7 +2,10 @@ package command
 
 import (
 	"github.com/xealgo/muddy/internal/game"
-	"github.com/xealgo/muddy/internal/session"
+)
+
+const (
+	MessageItemNotFound = "There is no such item here."
 )
 
 // PickupCommand type represents a pickup command.
@@ -11,13 +14,18 @@ type PickupCommand struct {
 }
 
 // executeLookCommand handles the execution of a look command.
-func (cmd PickupCommand) Execute(game *game.Game, ps *session.PlayerSession) string {
-	currentRoom, ok := game.World.GetRoomById(ps.GetData().CurrentRoomId)
+func (cmd PickupCommand) Execute(game *game.Game, ps *game.Player) string {
+	currentRoom, ok := game.World.GetRoomById(ps.CurrentRoomId)
 	if !ok {
 		return MessageInvalidCmd
 	}
 
-	_ = currentRoom
+	item, ok := currentRoom.RemoveItem(cmd.Identifier)
+	if !ok {
+		return MessageItemNotFound
+	}
 
-	return "Pickup command not yet available"
+	ps.Inventory.Add(item)
+
+	return "You picked up the " + item.Name + "."
 }

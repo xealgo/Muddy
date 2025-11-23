@@ -15,7 +15,7 @@ func TestParseAnyCommand(t *testing.T) {
 	}
 
 	tests := []CommandTest{
-		{input: "move north", expected: &MoveCommand{Direction: "north"}},
+		{input: "move north", expected: &MoveCommand{Choice: "north"}},
 		{input: "say hello world!!", expected: &SayCommand{Message: "hello world!!"}},
 		{input: "pickup lizards", expected: &PickupCommand{Identifier: "lizards"}},
 	}
@@ -32,7 +32,7 @@ func TestParseAnyCommand(t *testing.T) {
 			case CommandMove:
 				expectedCmd := test.expected.(*MoveCommand)
 				actualCmd := cmd.(*MoveCommand)
-				assert.Equal(t, expectedCmd.Direction, actualCmd.Direction)
+				assert.Equal(t, expectedCmd.Choice, actualCmd.Choice)
 			case CommandSay:
 				expectedCmd := test.expected.(*SayCommand)
 				actualCmd := cmd.(*SayCommand)
@@ -59,18 +59,16 @@ func TestParseMoveCommand(t *testing.T) {
 	}
 
 	tests := []CommandTest{
-		{input: "move north", expected: &MoveCommand{Direction: "north"}},
-		{input: "move  north", expected: &MoveCommand{Direction: "north"}},
-		{input: "move     north", expected: &MoveCommand{Direction: "north"}},
-		{input: " move north ", expected: &MoveCommand{Direction: "north"}},
-		{input: "move\nnorth", expected: &MoveCommand{Direction: "north"}},
-		{input: "move south", expected: &MoveCommand{Direction: "south"}},
-		{input: "move east", expected: &MoveCommand{Direction: "east"}},
-		{input: "move west", expected: &MoveCommand{Direction: "west"}},
+		{input: "move north", expected: &MoveCommand{Choice: "north"}},
+		{input: "move  north", expected: &MoveCommand{Choice: "north"}},
+		{input: "move     north", expected: &MoveCommand{Choice: "north"}},
+		{input: " move north ", expected: &MoveCommand{Choice: "north"}},
+		{input: "move\nnorth", expected: &MoveCommand{Choice: "north"}},
+		{input: "move south", expected: &MoveCommand{Choice: "south"}},
+		{input: "move east", expected: &MoveCommand{Choice: "east"}},
+		{input: "move west", expected: &MoveCommand{Choice: "west"}},
 		{input: "mehhh north", expected: nil, ExpectError: true},
 		{input: "move", expected: nil, ExpectError: true},
-		{input: "move out_the_way", expected: nil, ExpectError: true},
-		{input: "move south west", expected: nil, ExpectError: true},
 	}
 
 	p := Parser{}
@@ -81,7 +79,7 @@ func TestParseMoveCommand(t *testing.T) {
 		if test.expected != nil && test.ExpectError == false {
 			assert.Nil(t, err)
 			assert.NotNil(t, cmd)
-			assert.Equal(t, cmd.Direction, test.expected.Direction)
+			assert.Equal(t, cmd.Choice, test.expected.Choice)
 		}
 
 		if test.ExpectError {
@@ -141,8 +139,8 @@ func TestPickupMoveCommand(t *testing.T) {
 		{input: "pickup     rock", expected: &PickupCommand{Identifier: "rock"}},
 		{input: " pickup paper ", expected: &PickupCommand{Identifier: "paper"}},
 		{input: "pickup\nscissors", expected: &PickupCommand{Identifier: "scissors"}},
+		{input: "pickup lizards and spocks", expected: &PickupCommand{Identifier: "lizards and spocks"}},
 		{input: "pickups lizards", expected: nil, ExpectError: true},
-		{input: "pickup lizards and spocks", expected: nil, ExpectError: true},
 	}
 
 	p := Parser{}

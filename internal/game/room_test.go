@@ -1,4 +1,4 @@
-package world
+package game
 
 import (
 	"testing"
@@ -13,7 +13,7 @@ func TestRoomBasicInfo(t *testing.T) {
 	assert.Equal(t, "A room for testing.", room.Description)
 
 	info := room.GetBasicInfo()
-	expectedInfo := "Test Room\nA room for testing."
+	expectedInfo := "Test Room, A room for testing."
 
 	assert.Equal(t, expectedInfo, info)
 }

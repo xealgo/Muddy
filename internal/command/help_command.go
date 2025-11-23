@@ -4,13 +4,12 @@ import (
 	"strings"
 
 	"github.com/xealgo/muddy/internal/game"
-	"github.com/xealgo/muddy/internal/session"
 )
 
 type HelpCommand struct{}
 
 // Execute provides a list of available commands to the player.
-func (h HelpCommand) Execute(g *game.Game, ps *session.PlayerSession) string {
+func (h HelpCommand) Execute(g *game.Game, ps *game.Player) string {
 	builder := strings.Builder{}
 
 	builder.WriteString("The following commands are available\n")

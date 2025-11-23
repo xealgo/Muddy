@@ -3,19 +3,16 @@ package game
 import (
 	"log/slog"
 	"strings"
-
-	"github.com/xealgo/muddy/internal/session"
-	"github.com/xealgo/muddy/internal/world"
 )
 
 type Game struct {
-	World *world.World
-	Sm    *session.SessionManager
+	World *World
+	Sm    *SessionManager
 	state *GameState
 }
 
 // NewGame creates a new Game instance.
-func NewGame(world *world.World) *Game {
+func NewGame(world *World) *Game {
 	g := &Game{
 		state: NewGameState(),
 		World: world,
@@ -30,7 +27,7 @@ func (g Game) State() *GameState {
 }
 
 // GreetPlayer sends a greeting message to the player upon joining the game.
-func (g Game) GreetPlayer(ps *session.PlayerSession) {
+func (g Game) GreetPlayer(ps *Player) {
 	startingRoom, ok := g.World.GetRoomById(1)
 	if !ok {
 		slog.Error("Could not access room 1")
@@ -39,7 +36,7 @@ func (g Game) GreetPlayer(ps *session.PlayerSession) {
 
 	builder := strings.Builder{}
 	builder.WriteString("Greetings ")
-	builder.WriteString(ps.GetData().DisplayName)
+	builder.WriteString(ps.DisplayName)
 	builder.WriteString("!\nYou seem to find your self in ")
 	builder.WriteString(startingRoom.Name)
 	builder.WriteString(".\n")

@@ -2,7 +2,6 @@ package command
 
 import (
 	"github.com/xealgo/muddy/internal/game"
-	"github.com/xealgo/muddy/internal/session"
 )
 
 type CommandType string
@@ -20,5 +19,5 @@ const (
 
 // Command interface for executing commands
 type Command interface {
-	Execute(game *game.Game, ps *session.PlayerSession) string
+	Execute(game *game.Game, ps *game.Player) string
 }

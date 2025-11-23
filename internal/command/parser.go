@@ -3,7 +3,6 @@ package command
 import (
 	"fmt"
 	"regexp"
-	"slices"
 	"strings"
 )
 
@@ -30,6 +29,7 @@ func NewParser() *Parser {
 		{CommandPickup, func(input string) (Command, error) { return p.ParsePickupCommand(input) }},
 		{CommandLook, func(input string) (Command, error) { return p.ParseLookCommand(input) }},
 		{CommandHelp, func(input string) (Command, error) { return p.ParseHelpCommand(input) }},
+		{CommandInventory, func(input string) (Command, error) { return p.ParseInventoryCommand(input) }},
 	}
 
 	return p
@@ -76,21 +76,14 @@ func (p Parser) ParseMoveCommand(input string) (*MoveCommand, error) {
 	}
 
 	input = replaceNewlines(strings.ToLower(strings.TrimSpace(input)))
-	parts := strings.Split(input, " ")
+	parts := strings.SplitN(input, " ", 2)
 
 	if len(parts) != 2 || parts[0] != string(CommandMove) {
 		return nil, fmt.Errorf("invalid move command format")
 	}
 
-	dirs := GetMoveDirections()
-
-	found := slices.Contains(dirs, parts[1])
-	if !found {
-		return nil, fmt.Errorf("invalid move direction: %s", parts[1])
-	}
-
 	cmd := MoveCommand{
-		Direction: parts[1],
+		Choice: strings.TrimSpace(parts[1]),
 	}
 
 	return &cmd, nil
@@ -127,7 +120,7 @@ func (p Parser) ParsePickupCommand(input string) (*PickupCommand, error) {
 	}
 
 	input = replaceNewlines(strings.TrimSpace(input))
-	parts := strings.Split(input, " ")
+	parts := strings.SplitN(input, " ", 2)
 
 	if len(parts) != 2 || parts[0] != string(CommandPickup) {
 		return nil, fmt.Errorf("invalid pickup command format")
@@ -158,6 +151,24 @@ func (p Parser) ParseLookCommand(input string) (*LookCommand, error) {
 	}
 
 	cmd := LookCommand{}
+
+	return &cmd, nil
+}
+
+// ParseInventoryCommand parses an inventory command from the input string.
+func (p Parser) ParseInventoryCommand(input string) (*InventoryCommand, error) {
+	if len(input) == 0 {
+		return nil, fmt.Errorf("empty command")
+	}
+
+	input = replaceNewlines(strings.TrimSpace(input))
+	parts := strings.Split(input, " ")
+
+	if len(parts) != 1 || parts[0] != string(CommandInventory) {
+		return nil, fmt.Errorf("invalid inventory command format")
+	}
+
+	cmd := InventoryCommand{}
 
 	return &cmd, nil
 }

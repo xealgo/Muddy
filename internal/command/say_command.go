@@ -6,7 +6,6 @@ import (
 
 	"github.com/xealgo/muddy/internal/event"
 	"github.com/xealgo/muddy/internal/game"
-	"github.com/xealgo/muddy/internal/session"
 )
 
 // SayCommand type represents a say command with a message.
@@ -15,8 +14,8 @@ type SayCommand struct {
 }
 
 // executeLookCommand handles the execution of a look command.
-func (cmd SayCommand) Execute(game *game.Game, ps *session.PlayerSession) string {
-	currentRoom, ok := game.World.GetRoomById(ps.GetData().CurrentRoomId)
+func (cmd SayCommand) Execute(game *game.Game, ps *game.Player) string {
+	currentRoom, ok := game.World.GetRoomById(ps.CurrentRoomId)
 	if !ok {
 		return MessageInvalidCmd
 	}
@@ -28,7 +27,7 @@ func (cmd SayCommand) Execute(game *game.Game, ps *session.PlayerSession) string
 	event := event.Event{
 		Type:      "RoomChat",
 		Timestamp: time.Now(),
-		Data:      ps.GetData().DisplayName + ": " + m,
+		Data:      ps.DisplayName + ": " + m,
 	}
 
 	e.SendToRoom(event, game.Sm, currentRoom.ID)

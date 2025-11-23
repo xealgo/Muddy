@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/xealgo/muddy/internal/game"
-	"github.com/xealgo/muddy/internal/session"
 )
 
 // Runner executes commands for the game.
@@ -22,7 +21,7 @@ func NewRunner(game *game.Game) *Runner {
 }
 
 // Execute processes and executes commands based on input from the players.
-func (r Runner) Execute(ps *session.PlayerSession, input string) string {
+func (r Runner) Execute(ps *game.Player, input string) string {
 	if len(input) == 0 || input == "\n" || input == "\r" {
 		return ""
 	}

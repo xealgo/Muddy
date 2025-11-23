@@ -15,8 +15,6 @@ import (
 	"github.com/xealgo/muddy/internal/game"
 	"github.com/xealgo/muddy/internal/server"
 	"github.com/xealgo/muddy/internal/services"
-	"github.com/xealgo/muddy/internal/session"
-	"github.com/xealgo/muddy/internal/world"
 )
 
 func main() {
@@ -32,9 +30,9 @@ func main() {
 	}
 
 	// Session manager instance used for managing player sessions
-	sm := session.NewSessionManager(64)
+	sm := game.NewSessionManager(64)
 
-	world := world.NewWorld()
+	world := game.NewWorld()
 	err = world.LoadRoomsFromYaml("./data/test-world.yml")
 	if err != nil {
 		slog.Error("Failed to load world data", "error", err)
