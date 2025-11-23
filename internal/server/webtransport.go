@@ -256,7 +256,7 @@ func (s *Streaming) processStream(ctx context.Context, player *session.PlayerSes
 		if err != nil {
 			response = fmt.Sprintln(err.Error())
 		} else {
-			response = fmt.Sprintf("You move %s\n", cmd.Value[0])
+			response = fmt.Sprintf("You move %s\n", cmd.Direction)
 		}
 
 		if err = player.WriteString(response); err != nil {
