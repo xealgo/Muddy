@@ -1,7 +1,6 @@
 package world
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 
@@ -27,23 +26,6 @@ func NewWorld() *World {
 func (w World) GetRoomById(roomId int) (*Room, bool) {
 	room, exists := w.roomMap[roomId]
 	return room, exists
-}
-
-// LoadRoomsFromJson loads rooms from a JSON file.
-func (w *World) LoadRoomsFromJson(file string) error {
-	data, err := os.ReadFile(file)
-	if err != nil {
-		return fmt.Errorf("failed to load file %s: %w", file, err)
-	}
-
-	err = json.Unmarshal(data, &w.rooms)
-	if err != nil {
-		return fmt.Errorf("failed to parse rooms from file %s: %w", file, err)
-	}
-
-	w.populateRoomMap()
-
-	return nil
 }
 
 // LoadRoomsFromYaml loads rooms from a YAML file.

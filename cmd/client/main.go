@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -127,6 +128,10 @@ func connectWebTransport(ctx context.Context, cfg *config.Config, uuid string) e
 	dialer := webtransport.Dialer{
 		// Configure TLS, QUIC options, ALPN, etc., here if needed.
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		QUICConfig: &quic.Config{
+			EnableDatagrams: true,
+			KeepAlivePeriod: 30 * time.Minute,
+		},
 	}
 
 	timeoutCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
@@ -150,36 +155,16 @@ func connectWebTransport(ctx context.Context, cfg *config.Config, uuid string) e
 	// Start message handling
 	go handleIncomingMessages(stream)
 
-	// Start keepalive routine
-	go sendKeepalive(ctx, stream)
-
 	// Handle user input
 	return handleUserInput(ctx, stream)
 }
 
-// sendKeepalive sends periodic heartbeat messages to keep connection alive
-func sendKeepalive(ctx context.Context, stream *webtransport.Stream) {
-	ticker := time.NewTicker(30 * time.Second) // Send heartbeat every 30 seconds
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			// Send heartbeat (server should ignore this or respond)
-			_, err := stream.Write([]byte("PING"))
-			if err != nil {
-				slog.Debug("Failed to send keepalive", "error", err)
-				return
-			}
-		}
-	}
-}
-
 // handleIncomingMessages listens for messages from the server
+//
+// NOTE: This will eventually be entirely re-written.. just hacking away
+// for the time being.
 func handleIncomingMessages(stream *webtransport.Stream) {
-	stream.Write([]byte("PING"))
+	stream.Write([]byte{'\n'})
 
 	buffer := make([]byte, 1024)
 	for {
@@ -200,13 +185,29 @@ func handleIncomingMessages(stream *webtransport.Stream) {
 		}
 
 		message := string(buffer[:n])
-		if message == "PONG" {
-			continue
+
+		if strings.Contains(message, "event:") {
+			type Event struct {
+				Type      string
+				Timestamp time.Time
+				Data      interface{}
+			}
+
+			e := Event{}
+
+			m := strings.ReplaceAll(message, "event:", "")
+			err = json.Unmarshal([]byte(m), &e)
+			if err != nil {
+				slog.Error("failed to unmarshal event", "error", err)
+				return
+			}
+
+			if e.Type == "RoomChat" {
+				color.Yellow.Println(e.Data)
+			}
+		} else {
+			color.Cyan.Print(message)
 		}
-
-		message = strings.Replace(message, "PONG", "", 1)
-
-		color.Cyan.Print(message)
 	}
 }
 

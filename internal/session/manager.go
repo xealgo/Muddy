@@ -208,21 +208,3 @@ func (sm SessionManager) SendToPlayer(playerUuid string, message string) {
 		}
 	}
 }
-
-// BroadcastToRoom sends a message to all players in a specific room.
-func (sm SessionManager) BroadcastToRoom(roomId int, message string) {
-	active := sm.GetActivePlayers()
-	trimmed := strings.TrimRight(message, "\n") + "\n"
-
-	// This will be slow if we ramp the max player count to 1000+
-	// At that point, we'll want to create a slice within the room struct
-	// or a shared map roomId -> []playerId.
-	for _, ps := range active {
-		if ps.GetData().CurrentRoomId == roomId {
-			err := ps.WriteString(trimmed)
-			if err != nil {
-				slog.Error("failed to broadcast to player %s: %w", ps.GetData().DisplayName, err)
-			}
-		}
-	}
-}

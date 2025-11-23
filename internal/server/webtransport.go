@@ -18,6 +18,7 @@ import (
 
 	"github.com/quic-go/quic-go/http3"
 	"github.com/quic-go/webtransport-go"
+	"github.com/xealgo/muddy/internal/command"
 	"github.com/xealgo/muddy/internal/config"
 	"github.com/xealgo/muddy/internal/game"
 	"github.com/xealgo/muddy/internal/session"
@@ -31,11 +32,12 @@ const (
 
 // Streaming represents a WebTransport server configuration
 type Streaming struct {
-	cfg  *config.Config
-	addr string
-	wt   *webtransport.Server
-	sm   *session.SessionManager
-	game *game.Game
+	addr      string
+	cfg       *config.Config
+	wt        *webtransport.Server
+	sm        *session.SessionManager
+	game      *game.Game
+	cmdRunner *command.Runner
 
 	maxStreamBufferSize uint
 }
@@ -43,10 +45,11 @@ type Streaming struct {
 // NewStreaming creates a new Streaming instance
 func NewStreaming(cfg *config.Config, sm *session.SessionManager, game *game.Game) (*Streaming, error) {
 	s := &Streaming{
-		cfg:  cfg,
-		addr: fmt.Sprintf(":%d", cfg.WTPort),
-		sm:   sm,
-		game: game,
+		cfg:       cfg,
+		addr:      fmt.Sprintf(":%d", cfg.WTPort),
+		sm:        sm,
+		game:      game,
+		cmdRunner: command.NewRunner(game),
 	}
 
 	s.maxStreamBufferSize = DefaultStreamBufferSize
@@ -58,8 +61,9 @@ func NewStreaming(cfg *config.Config, sm *session.SessionManager, game *game.Gam
 			return true
 		},
 		H3: http3.Server{
-			Addr:      s.addr,
-			TLSConfig: cfg.TLSConfig,
+			Addr:        s.addr,
+			TLSConfig:   cfg.TLSConfig,
+			IdleTimeout: 0,
 		},
 	}
 
@@ -200,7 +204,7 @@ func (s *Streaming) handleSession(ctx context.Context, conn *webtransport.Sessio
 		// Eventually broadcast this..
 		fmt.Printf("%s has joined the game\n", player.GetData().DisplayName)
 
-		player.WriteString(fmt.Sprintf("Greetings %s!\n", player.GetData().DisplayName))
+		s.game.GreetPlayer(player)
 
 		go func(player *session.PlayerSession) {
 			s.processStream(ctx, player)
@@ -242,15 +246,7 @@ func (s *Streaming) processStream(ctx context.Context, player *session.PlayerSes
 		}
 
 		message := string(buffer[:n])
-		if message == "PING" {
-			if err := player.WriteString("PONG"); err != nil {
-				slog.Error("Failed to write to stream", "error", err)
-				return
-			}
-			continue
-		}
-
-		response := s.game.ProcessPlayerCommand(player, message)
+		response := s.cmdRunner.Execute(player, message)
 
 		if err = player.WriteString(response); err != nil {
 			slog.Error("Failed to write to stream", "error", err)

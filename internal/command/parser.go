@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-type CommandParseFunc = func(input string) (any, error)
+type CommandParseFunc = func(input string) (Command, error)
 
 // Parser handles command parsing.
 type Parser struct {
@@ -25,16 +25,18 @@ func NewParser() *Parser {
 		typ CommandType
 		fn  CommandParseFunc
 	}{
-		{CommandMove, func(input string) (any, error) { return p.ParseMoveCommand(input) }},
-		{CommandSay, func(input string) (any, error) { return p.ParseSayCommand(input) }},
-		{CommandPickup, func(input string) (any, error) { return p.ParsePickupCommand(input) }},
+		{CommandMove, func(input string) (Command, error) { return p.ParseMoveCommand(input) }},
+		{CommandSay, func(input string) (Command, error) { return p.ParseSayCommand(input) }},
+		{CommandPickup, func(input string) (Command, error) { return p.ParsePickupCommand(input) }},
+		{CommandLook, func(input string) (Command, error) { return p.ParseLookCommand(input) }},
+		{CommandHelp, func(input string) (Command, error) { return p.ParseHelpCommand(input) }},
 	}
 
 	return p
 }
 
 // ParseAnyCommand parses any command from the input string.
-func (p *Parser) ParseAnyCommand(input string) (CommandType, interface{}, error) {
+func (p *Parser) ParseAnyCommand(input string) (CommandType, Command, error) {
 	if p.parseFuncs == nil {
 		p = NewParser()
 	}
@@ -49,13 +51,31 @@ func (p *Parser) ParseAnyCommand(input string) (CommandType, interface{}, error)
 	return "", nil, fmt.Errorf("no valid command found")
 }
 
-// ParseMoveCommand parses a move command from the input string.
-func (p *Parser) ParseMoveCommand(input string) (*MoveCommand, error) {
+// ParseHelpCommand parses a help command from the input string.
+func (p Parser) ParseHelpCommand(input string) (*HelpCommand, error) {
 	if len(input) == 0 {
 		return nil, fmt.Errorf("empty command")
 	}
 
 	input = replaceNewlines(strings.TrimSpace(input))
+	parts := strings.Split(input, " ")
+
+	if len(parts) != 1 || parts[0] != string(CommandHelp) {
+		return nil, fmt.Errorf("invalid help command format")
+	}
+
+	cmd := HelpCommand{}
+
+	return &cmd, nil
+}
+
+// ParseMoveCommand parses a move command from the input string.
+func (p Parser) ParseMoveCommand(input string) (*MoveCommand, error) {
+	if len(input) == 0 {
+		return nil, fmt.Errorf("empty command")
+	}
+
+	input = replaceNewlines(strings.ToLower(strings.TrimSpace(input)))
 	parts := strings.Split(input, " ")
 
 	if len(parts) != 2 || parts[0] != string(CommandMove) {
@@ -77,7 +97,7 @@ func (p *Parser) ParseMoveCommand(input string) (*MoveCommand, error) {
 }
 
 // ParseSayCommand parses a say command from the input string.
-func (p *Parser) ParseSayCommand(input string) (*SayCommand, error) {
+func (p Parser) ParseSayCommand(input string) (*SayCommand, error) {
 	if len(input) == 0 {
 		return nil, fmt.Errorf("empty command")
 	}
@@ -101,7 +121,7 @@ func (p *Parser) ParseSayCommand(input string) (*SayCommand, error) {
 }
 
 // ParsePickupCommand parses a pickup command from the input string.
-func (p *Parser) ParsePickupCommand(input string) (*PickupCommand, error) {
+func (p Parser) ParsePickupCommand(input string) (*PickupCommand, error) {
 	if len(input) == 0 {
 		return nil, fmt.Errorf("empty command")
 	}
@@ -120,6 +140,24 @@ func (p *Parser) ParsePickupCommand(input string) (*PickupCommand, error) {
 	cmd := PickupCommand{
 		Identifier: parts[1],
 	}
+
+	return &cmd, nil
+}
+
+// ParseLookCommand parses a look command from the input string.
+func (p Parser) ParseLookCommand(input string) (*LookCommand, error) {
+	if len(input) == 0 {
+		return nil, fmt.Errorf("empty command")
+	}
+
+	input = replaceNewlines(strings.TrimSpace(input))
+	parts := strings.Split(input, " ")
+
+	if len(parts) != 1 || parts[0] != string(CommandLook) {
+		return nil, fmt.Errorf("invalid look command format")
+	}
+
+	cmd := LookCommand{}
 
 	return &cmd, nil
 }

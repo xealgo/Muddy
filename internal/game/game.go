@@ -1,27 +1,24 @@
 package game
 
 import (
-	"fmt"
+	"log/slog"
+	"strings"
 
-	"github.com/xealgo/muddy/internal/command"
 	"github.com/xealgo/muddy/internal/session"
 	"github.com/xealgo/muddy/internal/world"
 )
 
 type Game struct {
-	Sm *session.SessionManager
-
-	cp    *command.Parser
+	World *world.World
+	Sm    *session.SessionManager
 	state *GameState
-	world *world.World
 }
 
 // NewGame creates a new Game instance.
 func NewGame(world *world.World) *Game {
 	g := &Game{
 		state: NewGameState(),
-		world: world,
-		cp:    command.NewParser(),
+		World: world,
 	}
 
 	return g
@@ -32,12 +29,21 @@ func (g Game) State() *GameState {
 	return g.state
 }
 
-// ProcessPlayerCommand processes a command input from a player.
-func (g Game) ProcessPlayerCommand(ps *session.PlayerSession, input string) string {
-	ctype, cmd, err := g.cp.ParseAnyCommand(input)
-	if err != nil {
-		return fmt.Sprintln(err.Error())
+// GreetPlayer sends a greeting message to the player upon joining the game.
+func (g Game) GreetPlayer(ps *session.PlayerSession) {
+	startingRoom, ok := g.World.GetRoomById(1)
+	if !ok {
+		slog.Error("Could not access room 1")
+		return
 	}
 
-	return g.ExecuteCommand(ps, ctype, cmd)
+	builder := strings.Builder{}
+	builder.WriteString("Greetings ")
+	builder.WriteString(ps.GetData().DisplayName)
+	builder.WriteString("!\nYou seem to find your self in ")
+	builder.WriteString(startingRoom.Name)
+	builder.WriteString(".\n")
+	builder.WriteString(startingRoom.Description)
+
+	ps.WriteString(builder.String())
 }

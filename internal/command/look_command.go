@@ -1,0 +1,29 @@
+package command
+
+import (
+	"strings"
+
+	"github.com/xealgo/muddy/internal/game"
+	"github.com/xealgo/muddy/internal/session"
+)
+
+// LookCommand type represents a look command.
+type LookCommand struct {
+	//
+}
+
+// executeLookCommand handles the execution of a look command.
+func (cmd LookCommand) Execute(game *game.Game, ps *session.PlayerSession) string {
+	currentRoom, ok := game.World.GetRoomById(ps.GetData().CurrentRoomId)
+	if !ok {
+		return MessageInvalidCmd
+	}
+
+	builder := strings.Builder{}
+
+	builder.WriteString("You look around the room\n")
+	builder.WriteString("You see ")
+	builder.WriteString(currentRoom.GetExits())
+
+	return builder.String()
+}
