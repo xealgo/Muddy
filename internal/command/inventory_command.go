@@ -6,7 +6,7 @@ import (
 
 type InventoryCommand struct{}
 
-// executeLookCommand handles the execution of a look command.
+// Execute lists the items in the player's inventory.
 func (cmd InventoryCommand) Execute(game *game.Game, ps *game.Player) string {
 	return ps.Inventory.List()
 }

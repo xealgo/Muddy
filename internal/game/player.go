@@ -29,6 +29,8 @@ func NewPlayer(username string, displayName string) *Player {
 		Inventory:     NewInventory(),
 	}
 
+	p.Inventory.Initialize()
+
 	return p
 }
 

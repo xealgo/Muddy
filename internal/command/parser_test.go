@@ -160,3 +160,64 @@ func TestPickupMoveCommand(t *testing.T) {
 		}
 	}
 }
+
+func TestTalkCom(t *testing.T) {
+	type CommandTest struct {
+		input       string
+		expected    *TalkCommand
+		ExpectError bool
+	}
+
+	tests := []CommandTest{
+		{input: "talk lizards", expected: &TalkCommand{Target: "lizards"}},
+		{input: "talk  spock", expected: &TalkCommand{Target: "spock"}},
+	}
+
+	p := Parser{}
+
+	for _, test := range tests {
+		cmd, err := p.ParseTalkCommand(test.input)
+
+		if test.expected != nil && test.ExpectError == false {
+			assert.Nil(t, err)
+			assert.NotNil(t, cmd)
+			assert.Equal(t, cmd.Target, test.expected.Target)
+		}
+
+		if test.ExpectError {
+			assert.NotNil(t, err)
+			assert.Nil(t, cmd)
+		}
+	}
+}
+
+func TestSellCommand(t *testing.T) {
+	type CommandTest struct {
+		input       string
+		expected    *SellCommand
+		ExpectError bool
+	}
+
+	tests := []CommandTest{
+		{input: "sell joe apples", expected: &SellCommand{Target: "joe", ItemID: "apples"}},
+		{input: "sell jan lemons", expected: &SellCommand{Target: "jan", ItemID: "lemons"}},
+	}
+
+	p := Parser{}
+
+	for _, test := range tests {
+		cmd, err := p.ParseSellCommand(test.input)
+
+		if test.expected != nil && test.ExpectError == false {
+			assert.Nil(t, err)
+			assert.NotNil(t, cmd)
+			assert.Equal(t, cmd.Target, test.expected.Target)
+			assert.Equal(t, cmd.ItemID, test.expected.ItemID)
+		}
+
+		if test.ExpectError {
+			assert.NotNil(t, err)
+			assert.Nil(t, cmd)
+		}
+	}
+}

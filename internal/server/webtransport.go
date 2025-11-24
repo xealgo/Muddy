@@ -26,7 +26,7 @@ import (
 const (
 	MaxBufferSize           = 1024
 	MinBufferSize           = 256
-	DefaultStreamBufferSize = 256
+	DefaultStreamBufferSize = 1024
 )
 
 // Streaming represents a WebTransport server configuration

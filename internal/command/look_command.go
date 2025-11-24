@@ -11,7 +11,7 @@ type LookCommand struct {
 	//
 }
 
-// executeLookCommand handles the execution of a look command.
+// Execute allows the player to look around in the current room.
 func (cmd LookCommand) Execute(game *game.Game, ps *game.Player) string {
 	currentRoom, ok := game.World.GetRoomById(ps.CurrentRoomId)
 	if !ok {

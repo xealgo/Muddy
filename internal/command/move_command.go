@@ -20,7 +20,7 @@ type MoveCommand struct {
 	Choice string
 }
 
-// executeMoveCommand handles the execution of a move command.
+// Execute allows the player to move to an adjacent room if the door is not locked.
 func (cmd MoveCommand) Execute(game *game.Game, ps *game.Player) string {
 	currentRoom, ok := game.World.GetRoomById(ps.CurrentRoomId)
 	if !ok {

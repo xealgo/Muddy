@@ -30,6 +30,8 @@ func NewParser() *Parser {
 		{CommandLook, func(input string) (Command, error) { return p.ParseLookCommand(input) }},
 		{CommandHelp, func(input string) (Command, error) { return p.ParseHelpCommand(input) }},
 		{CommandInventory, func(input string) (Command, error) { return p.ParseInventoryCommand(input) }},
+		{CommandTalk, func(input string) (Command, error) { return p.ParseTalkCommand(input) }},
+		{CommandSell, func(input string) (Command, error) { return p.ParseSellCommand(input) }},
 	}
 
 	return p
@@ -169,6 +171,47 @@ func (p Parser) ParseInventoryCommand(input string) (*InventoryCommand, error) {
 	}
 
 	cmd := InventoryCommand{}
+
+	return &cmd, nil
+}
+
+// ParseTalkCommand parses a talk command from the input string.
+func (p Parser) ParseTalkCommand(input string) (*TalkCommand, error) {
+	if len(input) == 0 {
+		return nil, fmt.Errorf("empty command")
+	}
+
+	input = replaceNewlines(strings.TrimSpace(input))
+	parts := strings.Split(input, " ")
+
+	if len(parts) != 2 || parts[0] != string(CommandTalk) {
+		return nil, fmt.Errorf("invalid talk command format")
+	}
+
+	cmd := TalkCommand{
+		Target: strings.TrimSpace(parts[1]),
+	}
+
+	return &cmd, nil
+}
+
+// ParseSellCommand parses a sell command from the input string.
+func (p Parser) ParseSellCommand(input string) (*SellCommand, error) {
+	if len(input) == 0 {
+		return nil, fmt.Errorf("empty command")
+	}
+
+	input = replaceNewlines(strings.TrimSpace(input))
+	parts := strings.SplitN(input, " ", 3)
+
+	if len(parts) != 3 || parts[0] != string(CommandSell) {
+		return nil, fmt.Errorf("invalid sell command format")
+	}
+
+	cmd := SellCommand{
+		Target: strings.TrimSpace(parts[1]),
+		ItemID: strings.TrimSpace(parts[2]),
+	}
 
 	return &cmd, nil
 }

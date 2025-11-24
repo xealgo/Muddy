@@ -39,8 +39,9 @@ func (g Game) GreetPlayer(ps *Player) {
 	builder.WriteString(ps.DisplayName)
 	builder.WriteString("!\nYou seem to find your self in ")
 	builder.WriteString(startingRoom.Name)
-	builder.WriteString(".\n")
+	builder.WriteString(", ")
 	builder.WriteString(startingRoom.Description)
+	builder.WriteByte('\n')
 
 	ps.WriteString(builder.String())
 }

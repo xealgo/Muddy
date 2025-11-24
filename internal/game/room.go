@@ -14,9 +14,12 @@ type Room struct {
 	Description string `yaml:"description"`
 	Doors       []Door `yaml:"doors"`
 	Items       []Item `yaml:"items"`
+	RawNpcs     []any  `yaml:"npcs"`
+	Npcs        []Npc  `yaml:"-"`
 
 	doorMap map[string]*Door
 	itemMap map[string]*Item
+	npcMap  map[string]Npc
 	mutex   *sync.RWMutex
 }
 
@@ -28,36 +31,60 @@ func NewRoom(id int, name string, desc string) *Room {
 		Description: desc,
 		Items:       []Item{},
 		Doors:       []Door{},
+		RawNpcs:     []any{},
+		Npcs:        []Npc{},
 		doorMap:     make(map[string]*Door),
 		itemMap:     make(map[string]*Item),
+		npcMap:      make(map[string]Npc),
 		mutex:       &sync.RWMutex{},
 	}
-
-	room.Init()
 
 	return room
 }
 
-// Init initializes the room's internal structures
-func (room *Room) Init() {
-	if room.doorMap == nil {
-		room.doorMap = make(map[string]*Door)
-	}
-
-	if room.itemMap == nil {
-		room.itemMap = make(map[string]*Item)
-	}
-
-	if room.mutex == nil {
-		room.mutex = &sync.RWMutex{}
-	}
-
-	for _, door := range room.Doors {
+// Init initializes the room's internal structures. Since we're typically
+// loading rooms from disk, not all fields may have been initialized.
+func (room *Room) Copy(src *Room) {
+	for _, door := range src.Doors {
+		room.Doors = append(room.Doors, door)
 		room.doorMap[door.MoveCommand] = &door
 	}
 
-	for _, item := range room.Items {
-		room.itemMap[item.Name] = &item
+	for _, item := range src.Items {
+		room.Items = append(room.Items, item)
+		room.itemMap[strings.ToLower(item.Name)] = &item
+	}
+
+	room.RawNpcs = append(room.RawNpcs, src.RawNpcs...)
+
+	for index, raw := range room.RawNpcs {
+		m, ok := raw.(map[string]any)
+		if !ok {
+			slog.Warn("Invalid NPC data format in room", "roomId", room.ID, "index", index)
+			continue
+		}
+
+		ntype, _ := m["type"].(string)
+
+		switch ntype {
+		case NpcMerchant:
+			merchant := NewMerchant(fmt.Sprintf("%d-%d", room.ID, index))
+
+			if err := merchant.Convert(m); err != nil {
+				slog.Warn("Failed to convert merchant NPC", "roomId", room.ID, "error", err)
+				continue
+			}
+
+			room.Npcs = append(room.Npcs, merchant)
+		default:
+			slog.Warn("Unknown NPC type found in room", "roomId", room.ID)
+		}
+	}
+
+	if len(room.Npcs) > 0 {
+		for _, npc := range room.Npcs {
+			room.npcMap[npc.GetData().Name] = npc
+		}
 	}
 }
 
@@ -105,17 +132,16 @@ func (room Room) GetDetails(ps *Player, sm *SessionManager) string {
 	builder := strings.Builder{}
 
 	doorStr, count := room.GetDoors()
-	if count == 0 {
+	switch count {
+	case 0:
 		builder.WriteString("No exits")
-	}
-
-	if count == 1 {
+	case 1:
 		builder.WriteString(fmt.Sprintf("%d exit:\n", count))
-	} else {
+		builder.WriteString(doorStr)
+	default:
 		builder.WriteString(fmt.Sprintf("%d exits:\n", count))
+		builder.WriteString(doorStr)
 	}
-
-	builder.WriteString(doorStr)
 
 	items := room.Items
 	if len(items) > 0 {
@@ -142,6 +168,16 @@ func (room Room) GetDetails(ps *Player, sm *SessionManager) string {
 		builder.WriteString("You see ")
 		builder.WriteString(fmt.Sprintf("%d players:\n", playerCount))
 		builder.WriteString(psb.String())
+	}
+
+	if len(room.Npcs) > 0 {
+		builder.WriteString("You see the following NPCs in the room:\n")
+		for _, npc := range room.Npcs {
+			builder.WriteString("- ")
+			// builder.WriteString(fmt.Sprintf("(ID: %s) ", npc.GetData().ID))
+			builder.WriteString(npc.Description())
+			builder.WriteByte('\n')
+		}
 	}
 
 	return builder.String()
@@ -173,12 +209,18 @@ func (room Room) GetDoors() (string, int) {
 	return builder.String(), count
 }
 
+// GetNpcByName retrieves an NPC by its name
+func (Room Room) GetNpcByName(name string) (Npc, bool) {
+	npc, exists := Room.npcMap[name]
+	return npc, exists
+}
+
 // RemoveItem removes an item from the room by its name
 func (room *Room) RemoveItem(itemName string) (Item, bool) {
 	room.mutex.Lock()
 	defer room.mutex.Unlock()
 
-	item, ok := room.itemMap[itemName]
+	item, ok := room.itemMap[strings.ToLower(itemName)]
 	if !ok {
 		return Item{}, false
 	}
@@ -189,7 +231,7 @@ func (room *Room) RemoveItem(itemName string) (Item, bool) {
 
 	newItems := []Item{}
 	for _, item := range room.Items {
-		if item.Name != itemName {
+		if !strings.EqualFold(item.Name, itemName) {
 			newItems = append(newItems, item)
 		}
 	}
@@ -203,12 +245,12 @@ func (room *Room) AddItem(item Item) bool {
 	room.mutex.Lock()
 	defer room.mutex.Unlock()
 
-	_, ok := room.itemMap[item.Name]
+	_, ok := room.itemMap[strings.ToLower(item.Name)]
 	if ok {
 		return false
 	}
 
-	room.itemMap[item.Name] = &item
+	room.itemMap[strings.ToLower(item.Name)] = &item
 	room.Items = append(room.Items, item)
 
 	return true

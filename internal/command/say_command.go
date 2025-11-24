@@ -13,7 +13,7 @@ type SayCommand struct {
 	Message string
 }
 
-// executeLookCommand handles the execution of a look command.
+// Execute allows the player to say a message in the current room.
 func (cmd SayCommand) Execute(game *game.Game, ps *game.Player) string {
 	currentRoom, ok := game.World.GetRoomById(ps.CurrentRoomId)
 	if !ok {

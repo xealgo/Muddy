@@ -13,7 +13,7 @@ type PickupCommand struct {
 	Identifier string
 }
 
-// executeLookCommand handles the execution of a look command.
+// Execute allows the player to pick up an item from the current room.
 func (cmd PickupCommand) Execute(game *game.Game, ps *game.Player) string {
 	currentRoom, ok := game.World.GetRoomById(ps.CurrentRoomId)
 	if !ok {

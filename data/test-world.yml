@@ -10,6 +10,18 @@
       isLocked: true
       roomId: 3
       moveCommand: to the east
+  npcs:
+    - name: Henry
+      type: merchant
+      description: A friendly shopkeeper.
+      greeting: Welcome to my shop!
+      inventory:
+        gold: 0
+        items:
+          - name: Rusty knife
+            type: trinket
+            description: doesn't look like it's been taken care of
+            sellingPrice: 1
 
 - id: 2
   name: North Wing

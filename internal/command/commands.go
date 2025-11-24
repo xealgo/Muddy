@@ -15,6 +15,8 @@ const (
 	CommandPickup    CommandType = "pickup"    // pickup {item-name} - adds an item to the player's inventory
 	CommandInventory CommandType = "inventory" // reports what's in the player's inventory
 	CommandSay       CommandType = "say"       // say hello everyone! broadcasts a chat message to everyone in the room
+	CommandTalk      CommandType = "talk"      // talk {npc-name} - talk to an NPC in the room
+	CommandSell      CommandType = "sell"      // sell {npc-name} {item-name} - sell an item to a merchant NPC in the room
 )
 
 // Command interface for executing commands

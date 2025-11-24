@@ -13,10 +13,11 @@ var validItemTypes = []ItemType{Key, Trinket}
 
 // Item represents an item in the game world
 type Item struct {
-	Type         ItemType `yaml:"type"`
-	Name         string   `yaml:"name"`
-	Description  string   `yaml:"description"`
-	SellingPrice int      `yaml:"sellingPrice"`
+	ID           string   `yaml:"id" json:"id"`
+	Type         ItemType `yaml:"type" json:"type"`
+	Name         string   `yaml:"name" json:"name"`
+	Description  string   `yaml:"description" json:"description"`
+	SellingPrice int      `yaml:"sellingPrice" json:"sellingPrice"`
 }
 
 // String returns a formatted string representation of the item

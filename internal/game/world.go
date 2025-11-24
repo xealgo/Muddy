@@ -35,18 +35,23 @@ func (w *World) LoadRoomsFromYaml(file string) error {
 		return fmt.Errorf("failed to load file %s: %w", file, err)
 	}
 
-	err = yaml.Unmarshal(data, &w.rooms)
+	rooms := []*Room{}
+
+	err = yaml.Unmarshal(data, &rooms)
 	if err != nil {
 		return fmt.Errorf("failed to parse rooms from file %s: %w", file, err)
 	}
 
-	for _, room := range w.rooms {
+	for _, room := range rooms {
 		if !room.Validate() {
 			return fmt.Errorf("invalid room data found in file %s", file)
 		}
 
-		room.Init()
-		w.roomMap[room.ID] = room
+		newRoom := NewRoom(room.ID, room.Name, room.Description)
+		newRoom.Copy(room)
+
+		w.rooms = append(w.rooms, newRoom)
+		w.roomMap[room.ID] = newRoom
 	}
 
 	return nil
